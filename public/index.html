@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auth Service — Console</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2322d3ee'/><text x='16' y='23' font-size='19' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='%23071019'>A</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login-screen">
+  <div class="login-card">
+    <div class="row" style="margin-bottom:22px">
+      <div class="login-mark">A</div>
+      <div>
+        <div class="login-title">Auth Service</div>
+        <div class="login-sub">Console Administrasi</div>
+      </div>
+    </div>
+
+    <form id="login-form" class="stack">
+      <div class="field">
+        <label class="label" for="login-email">Email</label>
+        <input class="input" id="login-email" type="email" autocomplete="username" placeholder="superadmin@contoh.id" required>
+      </div>
+      <div class="field">
+        <label class="label" for="login-password">Password</label>
+        <input class="input" id="login-password" type="password" autocomplete="current-password" placeholder="••••••••••••" required>
+      </div>
+      <button class="btn btn-primary btn-block" id="login-submit" type="submit" style="margin-top:4px">Masuk</button>
+    </form>
+
+    <div class="row" style="margin-top:16px;justify-content:space-between">
+      <button class="btn btn-ghost btn-sm" id="open-forgot">Lupa password?</button>
+      <span class="faint" style="font-size:11.5px">POST /auth/login</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APLIKASI ============ -->
+<section id="app-screen" hidden>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <div class="brand-name">Auth Service</div>
+        <div class="brand-sub">Console</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <span class="badge mono" id="api-base">/api/v1</span>
+    <img class="avatar-chip" id="top-avatar" alt="" hidden>
+    <div class="who">
+      <div class="who-name" id="top-name">—</div>
+      <div class="who-roles mono" id="top-roles">—</div>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="btn-logout">Keluar</button>
+  </header>
+
+  <div class="shell">
+    <!-- sidebar -->
+    <nav class="sidebar">
+      <div class="nav-group-label">Ikhtisar</div>
+      <button class="nav-item active" data-page="dashboard"><span class="nav-ico">◈</span><span>Dashboard</span></button>
+      <button class="nav-item" data-page="profile"><span class="nav-ico">◉</span><span>Profil Saya</span></button>
+
+      <div class="nav-group-label">Administrasi</div>
+      <button class="nav-item" data-page="users"><span class="nav-ico">▤</span><span>Pengguna</span></button>
+      <button class="nav-item" data-page="roles"><span class="nav-ico">◇</span><span>Role</span></button>
+      <button class="nav-item" data-page="matrix"><span class="nav-ico">▦</span><span>Matriks Izin</span></button>
+
+      <div class="nav-group-label">Sistem</div>
+      <button class="nav-item" data-page="password"><span class="nav-ico">✉</span><span>Reset Password</span></button>
+      <button class="nav-item" data-page="system"><span class="nav-ico">◎</span><span>Status &amp; Cakupan</span></button>
+    </nav>
+
+    <!-- konten -->
+    <main class="content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <div class="page" data-page="dashboard">
+        <div class="page-head">
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-desc">Ringkasan identitas, hak akses, dan kondisi layanan. Setiap angka di halaman ini diambil dari endpoint sungguhan — lihat panel kanan.</p>
+        </div>
+
+        <div class="grid grid-4">
+          <div class="card card-glow"><div class="stat-label">Izin Saya</div><div class="stat-value" id="d-perm-count">—</div><div class="stat-foot">GET /auth/permissions</div></div>
+          <div class="card"><div class="stat-label">Total Pengguna</div><div class="stat-value" id="d-user-count">—</div><div class="stat-foot">GET /users</div></div>
+          <div class="card"><div class="stat-label">Total Role</div><div class="stat-value" id="d-role-count">—</div><div class="stat-foot">GET /roles</div></div>
+          <div class="card"><div class="stat-label">Total Permission</div><div class="stat-value" id="d-perm-total">—</div><div class="stat-foot">GET /permissions</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Identitas</div>
+          <div class="card"><div class="grid grid-2" id="d-identity"></div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Kesehatan Layanan</div>
+          <div class="grid grid-3" id="d-health"></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Izin yang Saya Miliki</div>
+          <div class="card"><div class="perm-chips" id="d-perms"></div></div>
+        </div>
+      </div>
+
+      <!-- ===== PROFIL ===== -->
+      <div class="page" data-page="profile" hidden>
+        <div class="page-head">
+          <h1 class="page-title">Profil Saya</h1>
+          <p class="page-desc">Data diri pemilik token yang sedang aktif. Foto disimpan di MinIO dan diakses lewat alamat bertanda tangan yang berlaku satu jam.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card stack">
+            <div class="section-title" style="margin:0">Foto Profil</div>
+            <div class="row" style="gap:18px">
+              <img id="p-avatar" class="avatar-chip" style="width:88px;height:88px;border-radius:16px" alt="">
+              <div class="stack" style="gap:8px;flex:1">
+                <input class="input" type="file" id="p-file" accept="image/jpeg,image/png,image/webp">
+                <div class="row">
+                  <button class="btn btn-primary btn-sm" id="p-upload">Unggah</button>
+                  <button class="btn btn-danger btn-sm" id="p-remove">Hapus</button>
+                </div>
+                <div class="hint">JPEG, PNG, atau WebP. Maksimal 2 MB. SVG ditolak karena bisa memuat skrip.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title" style="margin:0 0 12px">Ubah Data</div>
+            <form id="p-form" class="stack">
+              <div class="field"><label class="label" for="p-name">Nama Lengkap</label><input class="input" id="p-name" minlength="3" required></div>
+              <div class="field"><label class="label" for="p-phone">Nomor Telepon</label><input class="input" id="p-phone" placeholder="081234567890"></div>
+              <button class="btn btn-primary" type="submit">Simpan Perubahan</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Detail</div>
+          <div class="card"><div class="grid grid-2" id="p-detail"></div></div>
+        </div>
+      </div>
+
+      <!-- ===== PENGGUNA ===== -->
+      <div class="page" data-page="users" hidden>
+        <div class="page-head">
+          <div class="row">
+            <div>
+              <h1 class="page-title">Pengguna</h1>
+              <p class="page-desc">Pembuatan akun hanya lewat administrator — tidak ada pendaftaran mandiri.</p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn btn-primary" id="u-new">+ Pengguna Baru</button>
+          </div>
+        </div>
+
+        <div class="row-wrap" style="margin-bottom:14px">
+          <span class="badge mono" id="u-meta">—</span>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost btn-sm" id="u-prev">‹ Sebelumnya</button>
+          <button class="btn btn-ghost btn-sm" id="u-next">Berikutnya ›</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pengguna</th><th>Role</th><th>Status</th><th>Login Terakhir</th><th style="text-align:right">Aksi</th></tr></thead>
+            <tbody id="u-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== ROLE ===== -->
+      <div class="page" data-page="roles" hidden>
+        <div class="page-head">
+          <div class="row">
+            <div>
+              <h1 class="page-title">Role</h1>
+              <p class="page-desc">Izin melekat pada role, bukan langsung pada pengguna. Mengubah izin sebuah role berlaku untuk semua pemakainya seketika.</p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn btn-primary" id="r-new">+ Role Baru</button>
+          </div>
+        </div>
+        <div class="grid grid-2" id="r-cards"></div>
+      </div>
+
+      <!-- ===== MATRIKS ===== -->
+      <div class="page" data-page="matrix" hidden>
+        <div class="page-head">
+          <div class="row">
+            <div>
+              <h1 class="page-title">Matriks Izin</h1>
+              <p class="page-desc">Perbandingan wewenang antar role. Centang atau hapus centang untuk mengubah izin secara langsung, lalu simpan.</p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn btn-ghost" id="m-reset" hidden>Batalkan</button>
+            <button class="btn btn-primary" id="m-save" hidden>Simpan Perubahan</button>
+            <button class="btn" id="m-edit">Ubah Izin</button>
+          </div>
+        </div>
+        <div class="row-wrap" style="margin-bottom:14px" id="m-legend"></div>
+        <div class="matrix-wrap"><table class="matrix"><thead id="m-head"></thead><tbody id="m-body"></tbody></table></div>
+      </div>
+
+      <!-- ===== RESET PASSWORD ===== -->
+      <div class="page" data-page="password" hidden>
+        <div class="page-head">
+          <h1 class="page-title">Reset Password</h1>
+          <p class="page-desc">Permintaan reset dikirim ke antrean RabbitMQ, lalu dikirim sebagai email oleh proses terpisah. Jawaban API selalu sama, terdaftar maupun tidak.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="section-title" style="margin:0 0 12px">1. Minta Tautan Reset</div>
+            <form id="fp-form" class="stack">
+              <div class="field"><label class="label" for="fp-email">Email</label><input class="input" id="fp-email" type="email" required></div>
+              <button class="btn btn-primary" type="submit">Kirim Permintaan</button>
+              <div class="hint">POST /auth/forgot-password · dibatasi 3 kali per jam</div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="section-title" style="margin:0 0 12px">2. Tukar Token dengan Password Baru</div>
+            <form id="rp-form" class="stack">
+              <div class="field"><label class="label" for="rp-token">Token dari Email</label><input class="input mono" id="rp-token" required></div>
+              <div class="field"><label class="label" for="rp-pass">Password Baru</label><input class="input" id="rp-pass" type="password" minlength="12" required></div>
+              <button class="btn btn-primary" type="submit">Ganti Password</button>
+              <div class="hint">POST /auth/reset-password · minimal 12 karakter · token sekali pakai</div>
+            </form>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="card">
+            <div class="section-title" style="margin:0 0 10px">Yang Terjadi di Balik Layar</div>
+            <div class="grid grid-4">
+              <div><div class="stat-label">1 · Token</div><div class="stat-foot">32 byte acak, yang disimpan hanya hash-nya</div></div>
+              <div><div class="stat-label">2 · Redis</div><div class="stat-foot">Berlaku 15 menit, lalu hangus sendiri</div></div>
+              <div><div class="stat-label">3 · RabbitMQ</div><div class="stat-foot">Perintah kirim dititipkan, API langsung menjawab</div></div>
+              <div><div class="stat-label">4 · Worker</div><div class="stat-foot">Proses terpisah mengirim email lewat SMTP</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SISTEM ===== -->
+      <div class="page" data-page="system" hidden>
+        <div class="page-head">
+          <div class="row">
+            <div>
+              <h1 class="page-title">Status &amp; Cakupan Endpoint</h1>
+              <p class="page-desc">Daftar seluruh endpoint yang tersedia. Yang menyala hijau berarti sudah pernah dipanggil dari konsol ini selama sesi berjalan.</p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn" id="s-refresh">Periksa Ulang</button>
+          </div>
+        </div>
+
+        <div class="grid grid-3" id="s-health"></div>
+
+        <div class="section">
+          <div class="section-title">Cakupan Endpoint <span class="badge badge-accent" id="s-coverage">0 / 0</span></div>
+          <div class="grid grid-2" id="s-endpoints"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- panel request -->
+    <aside class="reqpanel">
+      <div class="reqpanel-head">
+        <span class="reqpanel-title">Lalu Lintas API</span>
+        <div class="spacer"></div>
+        <span class="badge mono" id="log-count">0</span>
+        <button class="btn btn-ghost btn-sm" id="log-clear">Bersihkan</button>
+      </div>
+      <div class="reqpanel-list" id="log-list">
+        <div class="empty">Belum ada permintaan.<br>Setiap aksi akan tercatat di sini.</div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

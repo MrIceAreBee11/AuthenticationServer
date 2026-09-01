@@ -1,0 +1,42 @@
+# ---------- Dependency ----------
+node_modules/
+
+# ---------- Rahasia ----------
+# .env berisi kredensial asli dan tidak boleh masuk repositori.
+# .env.example dan .env.test sengaja TIDAK diabaikan:
+#   .env.example  -> daftar variabel yang harus diisi, tanpa nilai rahasia
+#   .env.test     -> hanya berisi NODE_ENV=test, bukan rahasia
+.env
+.env.local
+.env.production
+.env.*.local
+
+# ---------- Berkas sementara hasil pengujian manual ----------
+.token
+avatar-url.txt
+uji-*.png
+uji-*.txt
+
+# ---------- Keluaran yang bisa dibuat ulang ----------
+# Laporan .docx ikut di-commit sebagai hasil kerja.
+# Versi PDF-nya tidak, karena berukuran besar dan dapat dibuat ulang dari .docx.
+docs/*.pdf
+coverage/
+dist/
+build/
+
+# ---------- Log ----------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------- Editor & sistem operasi ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
