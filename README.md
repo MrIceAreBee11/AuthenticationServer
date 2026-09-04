@@ -93,7 +93,7 @@ Seluruhnya berawalan `/api/v1`.
 | POST | `/auth/login` | terbuka, 5 percobaan / 15 menit |
 | GET | `/auth/me` | token sah |
 | POST | `/auth/logout` | token sah |
-| GET | `/auth/permissions` | `permissions.read` |
+| GET | `/auth/permissions` | token sah (izin milik sendiri) |
 | POST | `/auth/forgot-password` | terbuka, 3 permintaan / jam |
 | POST | `/auth/reset-password` | terbuka |
 | GET | `/profile` | `profile.read` |

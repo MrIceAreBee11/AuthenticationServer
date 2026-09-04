@@ -11,7 +11,9 @@ const router = Router();
 router.post('/login', loginRateLimiter, login);
 router.get('/me', authenticate, me);
 router.post('/logout', authenticate, logout);
-router.get('/permissions', authenticate, authorize(PERMISSIONS.PERMISSIONS_READ ), permissions);
+// Ini daftar izin MILIK SENDIRI, jadi cukup butuh token yang sah.
+// Izin permissions.read menjaga katalog seluruh permission di GET /permissions.
+router.get('/permissions', authenticate, permissions);
 router.post('/forgot-password', passwordResetRateLimiter, forgotPassword);
 router.post('/reset-password',resetPassword);
 module.exports = router;

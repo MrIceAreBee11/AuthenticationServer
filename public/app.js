@@ -89,6 +89,29 @@ const pretty = (value) => {
   try { return JSON.stringify(value, null, 2); } catch { return String(value); }
 };
 
+const fmtTime = (date) =>
+  `${date.toLocaleTimeString('id-ID', { hour12: false })}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+
+/** Wajib dijalankan sebelum highlightJson, karena isi respons bisa memuat teks dari pengguna. */
+const escapeHtml = (text) =>
+  text.replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+
+const JSON_TOKEN = /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"\s*:?)|\b(true|false)\b|\b(null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+
+const highlightJson = (value) =>
+  escapeHtml(pretty(value)).replace(JSON_TOKEN, (match, str, bool, nul, numeric) => {
+    if (str) return `<span class="${str.trimEnd().endsWith(':') ? 'j-key' : 'j-str'}">${str}</span>`;
+    if (bool) return `<span class="j-bool">${bool}</span>`;
+    if (nul) return `<span class="j-null">${nul}</span>`;
+    return `<span class="j-num">${numeric}</span>`;
+  });
+
+const statusTone = (status) => {
+  if (status === 0 || status === 429 || status >= 500) return 'err';
+  if (status >= 400) return 'warn';
+  return 'ok';
+};
+
 /* ============================================================
    Lapisan API — setiap panggilan tercatat di panel kanan
    ============================================================ */
@@ -96,6 +119,21 @@ const normalizePath = (path) => path
   .split('?')[0]
   .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/:id')
   .replace(/\/\d+/g, '/:id');
+
+/**
+ * Panel ini dipakai saat demo di depan orang lain, jadi isian rahasia
+ * tidak boleh ikut tampil di layar meski request-nya sah.
+ */
+const REDACTED_KEYS = new Set(['password', 'newPassword', 'passwordHash']);
+
+const redactSecrets = (body) => {
+  if (!body || typeof body !== 'object') return body;
+
+  return Object.fromEntries(
+    Object.entries(body).map(([key, value]) =>
+      [key, REDACTED_KEYS.has(key) ? '••••••••  (disembunyikan)' : value])
+  );
+};
 
 const pushLog = (entry) => {
   state.logs.unshift(entry);
@@ -129,11 +167,12 @@ async function api(path, { method = 'GET', body, raw = false } = {}) {
   state.hitEndpoints.add(key);
 
   pushLog({
+    at: new Date(),
     method,
     path,
     status: failure ? 0 : response.status,
     ms,
-    request: raw ? '[FormData — berkas biner]' : body ?? null,
+    request: raw ? '[FormData — berkas biner]' : redactSecrets(body) ?? null,
     response: failure ? { error: failure.message } : payload,
   });
 
@@ -154,7 +193,11 @@ async function api(path, { method = 'GET', body, raw = false } = {}) {
 
 function renderLogs() {
   const list = $('#log-list');
-  $('#log-count').textContent = String(state.logs.length);
+  const total = String(state.logs.length);
+
+  $('#log-count').textContent = total;
+  $('#insp-fab-count').textContent = total;
+
   clear(list);
 
   if (state.logs.length === 0) {
@@ -162,23 +205,32 @@ function renderLogs() {
     return;
   }
 
-  state.logs.forEach((log) => {
-    const statusClass = log.status >= 500 ? 's5' : log.status >= 400 ? 's4' : log.status > 0 ? 's2' : 's5';
-    const card = el('div', { class: 'log' }, [
-      el('div', { class: 'log-head', onClick: (event) => event.currentTarget.parentElement.classList.toggle('open') }, [
+  state.logs.forEach((log, index) => {
+    const tone = statusTone(log.status);
+
+    list.append(el('div', { class: `log${index === 0 ? ' fresh' : ''}` }, [
+      el('div', {
+        class: 'log-head',
+        onClick: (event) => event.currentTarget.parentElement.classList.toggle('open'),
+      }, [
         el('span', { class: `log-method ${log.method}`, text: log.method }),
         el('span', { class: 'log-path', text: log.path }),
-        el('span', { class: `log-status ${statusClass}`, text: log.status || 'ERR' }),
-        el('span', { class: 'log-ms', text: `${log.ms}ms` }),
+        el('span', { class: `log-status ${tone}`, text: log.status || 'ERR' }),
+      ]),
+      el('div', { class: 'log-meta' }, [
+        el('span', { text: fmtTime(log.at) }),
+        el('span', { class: 'sep', text: '·' }),
+        el('span', { class: `log-ms${log.ms > 500 ? ' slow' : ''}`, text: `${log.ms} ms` }),
+        el('span', { class: 'sep', text: '·' }),
+        el('span', { text: log.status ? `HTTP ${log.status}` : 'tidak terhubung' }),
       ]),
       el('div', { class: 'log-body' }, [
-        log.request ? el('div', { class: 'log-label', text: 'Request' }) : null,
-        log.request ? el('div', { class: 'log-json', text: pretty(log.request) }) : null,
-        el('div', { class: 'log-label', text: 'Response' }),
-        el('div', { class: 'log-json', text: pretty(log.response) }),
+        log.request ? el('div', { class: 'log-label', text: 'Request Body' }) : null,
+        log.request ? el('div', { class: 'log-json', html: highlightJson(log.request) }) : null,
+        el('div', { class: 'log-label', text: 'Response Body' }),
+        el('div', { class: 'log-json', html: highlightJson(log.response) }),
       ]),
-    ]);
-    list.append(card);
+    ]));
   });
 }
 
@@ -194,9 +246,14 @@ function handleExpiredSession(message) {
 }
 
 async function bootSession() {
-  const [me, perms] = await Promise.all([api('/auth/me'), api('/auth/permissions')]);
+  const me = await api('/auth/me');
+
+  // Daftar izin tidak boleh menghalangi proses masuk. Kalau gagal diambil,
+  // konsol tetap terbuka dengan menu yang terbatas, bukan menolak login.
+  const perms = await api('/auth/permissions').catch(() => ({ data: { permissions: [] } }));
+
   state.me = me.data.user;
-  state.permissions = perms.data.permissions;
+  state.permissions = perms.data.permissions ?? [];
 
   $('#top-name').textContent = state.me.fullName;
   $('#top-roles').textContent = state.me.roles.map((role) => role.name).join(' · ') || 'tanpa role';
@@ -900,7 +957,168 @@ $('#btn-logout').addEventListener('click', async () => {
 
 $$('.nav-item').forEach((button) => button.addEventListener('click', () => goto(button.dataset.page)));
 
+/* ============================================================
+   API Response Inspector — buka/tutup, geser, ubah ukuran
+   ============================================================ */
+const INSPECTOR_KEY = 'auth-console-inspector';
+const INSPECTOR_BOX_KEY = 'auth-console-inspector-box';
+
+/** Batas ukuran dan jarak minimum dari tepi layar. */
+const BOX = { minW: 300, minH: 200, maxW: 720, maxH: 900, margin: 12 };
+
+const inspector = $('#inspector');
+
+const defaultBox = () => {
+  const width = Math.min(430, window.innerWidth - BOX.margin * 3);
+  const height = Math.min(Math.round(window.innerHeight * 0.6), 600);
+
+  return {
+    width,
+    height,
+    left: window.innerWidth - width - 18,
+    top: window.innerHeight - height - 18,
+  };
+};
+
+/** Menjaga panel tetap utuh di dalam viewport dan dalam rentang ukuran yang wajar. */
+const clampBox = ({ left, top, width, height }) => {
+  const maxWidth = Math.min(BOX.maxW, window.innerWidth - BOX.margin * 2);
+  const maxHeight = Math.min(BOX.maxH, window.innerHeight - BOX.margin * 2);
+
+  const safeWidth = Math.min(Math.max(width, BOX.minW), maxWidth);
+  const safeHeight = Math.min(Math.max(height, BOX.minH), maxHeight);
+
+  return {
+    width: safeWidth,
+    height: safeHeight,
+    left: Math.min(Math.max(left, BOX.margin), window.innerWidth - safeWidth - BOX.margin),
+    top: Math.min(Math.max(top, BOX.margin), window.innerHeight - safeHeight - BOX.margin),
+  };
+};
+
+const applyBox = (box, { persist = true } = {}) => {
+  const safe = clampBox(box);
+
+  inspector.style.left = `${safe.left}px`;
+  inspector.style.top = `${safe.top}px`;
+  inspector.style.right = 'auto';
+  inspector.style.bottom = 'auto';
+  inspector.style.width = `${safe.width}px`;
+  inspector.style.height = `${safe.height}px`;
+
+  if (persist) {
+    localStorage.setItem(INSPECTOR_BOX_KEY, JSON.stringify(safe));
+    document.body.classList.add('insp-moved');
+  }
+
+  return safe;
+};
+
+const readSavedBox = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(INSPECTOR_BOX_KEY) || 'null');
+    return saved && Number.isFinite(saved.width) ? saved : null;
+  } catch {
+    return null;
+  }
+};
+
+const resetBox = () => {
+  localStorage.removeItem(INSPECTOR_BOX_KEY);
+  document.body.classList.remove('insp-moved');
+  applyBox(defaultBox(), { persist: false });
+};
+
+const setInspectorOpen = (open) => {
+  inspector.hidden = !open;
+  $('#insp-open').hidden = open;
+  document.body.classList.toggle('insp-open', open);
+  localStorage.setItem(INSPECTOR_KEY, open ? 'open' : 'closed');
+
+  if (open) {
+    const saved = readSavedBox();
+    applyBox(saved ?? defaultBox(), { persist: Boolean(saved) });
+  }
+};
+
+/**
+ * Satu penangan untuk geser maupun ubah ukuran. Pointer Events dipakai agar
+ * mouse dan sentuh tertangani sekaligus, dan pointer capture membuat gerakan
+ * tetap terlacak walau kursor keluar dari elemen pegangannya.
+ */
+const startInteraction = (event, mode) => {
+  if (event.button !== 0) return;
+
+  const rect = inspector.getBoundingClientRect();
+  const origin = {
+    pointerX: event.clientX,
+    pointerY: event.clientY,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+
+  const handle = event.currentTarget;
+
+  inspector.classList.add('interacting');
+  handle.setPointerCapture(event.pointerId);
+
+  const onMove = (moveEvent) => {
+    const deltaX = moveEvent.clientX - origin.pointerX;
+    const deltaY = moveEvent.clientY - origin.pointerY;
+
+    applyBox(mode === 'drag'
+      ? { ...origin, left: origin.left + deltaX, top: origin.top + deltaY }
+      : { ...origin, width: origin.width + deltaX, height: origin.height + deltaY });
+  };
+
+  const onEnd = () => {
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onEnd);
+    handle.removeEventListener('pointercancel', onEnd);
+    inspector.classList.remove('interacting');
+  };
+
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onEnd);
+  handle.addEventListener('pointercancel', onEnd);
+};
+
+$('#insp-head').addEventListener('pointerdown', (event) => {
+  if (event.target.closest('button')) return;
+  startInteraction(event, 'drag');
+});
+
+$('#insp-head').addEventListener('dblclick', (event) => {
+  if (event.target.closest('button')) return;
+  resetBox();
+  toast('Posisi panel dikembalikan');
+});
+
+$('#insp-grip').addEventListener('pointerdown', (event) => startInteraction(event, 'resize'));
+
+window.addEventListener('resize', () => {
+  if (inspector.hidden) return;
+
+  const saved = readSavedBox();
+  applyBox(saved ?? defaultBox(), { persist: Boolean(saved) });
+});
+
 $('#log-clear').addEventListener('click', () => { state.logs = []; renderLogs(); });
+$('#insp-min').addEventListener('click', () => setInspectorOpen(false));
+$('#insp-open').addEventListener('click', () => setInspectorOpen(true));
+
+if (readSavedBox()) document.body.classList.add('insp-moved');
+
+/**
+ * Di layar sempit panel pasti menutupi kartu login, jadi bawaannya mengecil
+ * dan cukup diwakili tombol pemanggil. Di layar lebar ia langsung terbuka
+ * supaya request login pertama pun ikut tercatat di depan penonton.
+ */
+const savedOpenState = localStorage.getItem(INSPECTOR_KEY);
+
+setInspectorOpen(savedOpenState ? savedOpenState !== 'closed' : window.innerWidth >= 1000);
 
 $('#u-new').addEventListener('click', openUserCreate);
 $('#u-prev').addEventListener('click', () => { state.users.meta.page -= 1; renderUsers(); });

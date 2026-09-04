@@ -274,20 +274,32 @@
 
     </main>
 
-    <!-- panel request -->
-    <aside class="reqpanel">
-      <div class="reqpanel-head">
-        <span class="reqpanel-title">Lalu Lintas API</span>
-        <div class="spacer"></div>
-        <span class="badge mono" id="log-count">0</span>
-        <button class="btn btn-ghost btn-sm" id="log-clear">Bersihkan</button>
-      </div>
-      <div class="reqpanel-list" id="log-list">
-        <div class="empty">Belum ada permintaan.<br>Setiap aksi akan tercatat di sini.</div>
-      </div>
-    </aside>
   </div>
 </section>
+
+<!-- ===== API RESPONSE INSPECTOR =====
+     Diletakkan di luar #login-screen dan #app-screen supaya tetap terlihat
+     sebelum login — request POST /auth/login sendiri pun ikut tercatat. -->
+<button class="inspector-fab" id="insp-open" hidden>
+  <span class="fab-ico">◈</span>
+  <span>API Inspector</span>
+  <span class="fab-count" id="insp-fab-count">0</span>
+</button>
+
+<aside class="inspector" id="inspector">
+  <div class="inspector-head" id="insp-head" title="Tarik untuk memindahkan · klik ganda untuk kembali ke posisi semula">
+    <span class="dot ok" id="insp-live"></span>
+    <span class="inspector-title">API Response Inspector</span>
+    <span class="badge mono" id="log-count">0</span>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm" id="log-clear">Bersihkan</button>
+    <button class="x-btn" id="insp-min" title="Sembunyikan panel">−</button>
+  </div>
+  <div class="inspector-list" id="log-list">
+    <div class="empty">Belum ada permintaan.<br>Setiap aksi akan tercatat di sini.</div>
+  </div>
+  <div class="insp-grip" id="insp-grip" title="Tarik untuk mengubah ukuran"></div>
+</aside>
 
 <div id="modal-root"></div>
 <div id="toasts"></div>

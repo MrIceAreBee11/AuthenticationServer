@@ -2,6 +2,7 @@ const authService = require('./auth.service');
 const AppError = require('../../utils/AppError');
 const { successResponse } = require('../../utils/response');
 const passwordService = require('./password.service');
+const { getUserPermissions } = require('../../services/permission.service');
 const { QUEUES, publish } = require('../../queue');
 const env = require('../../config/env');
 
@@ -33,8 +34,13 @@ const logout = async (req, res) => {
 };
 
 const permissions = async (req, res) => {
+  // Diambil sendiri, bukan mengandalkan req.permissions dari middleware authorize.
+  // Controller yang bergantung pada middleware otorisasi untuk DATANYA akan
+  // ikut rusak begitu penjagaan route-nya diubah.
+  const ownedPermissions = await getUserPermissions(req.user.id);
+
   return successResponse(res, 200, 'Daftar izin berhasil diambil', {
-    permissions: req.permissions,
+    permissions: ownedPermissions,
   });
 };
 

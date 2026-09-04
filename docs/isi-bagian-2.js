@@ -427,9 +427,21 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   ),
   p('Konsekuensinya, seluruh sistem tetap dapat dijalankan dengan satu perintah yang sama seperti sebelumnya, dan antarmuka ikut masuk ke dalam image Docker.'),
 
-  h2('11.5 Panel Lalu Lintas API'),
-  p('Setiap aksi pada antarmuka mencatat permintaan HTTP-nya di panel sisi kanan layar: metode, alamat, kode status, waktu tempuh, isi permintaan, dan isi jawaban.'),
+  h2('11.5 API Response Inspector'),
+  p('Setiap aksi pada antarmuka mencatat permintaan HTTP-nya di sebuah panel melayang: metode, alamat, kode status berwarna, waktu tempuh, penanda waktu, serta isi permintaan dan jawaban dengan pewarnaan sintaks.'),
   p('Ini keputusan yang dibuat khusus untuk keperluan peragaan kepada audiens teknis. Antarmuka biasa hanya memperlihatkan hasil akhir; panel ini memperlihatkan bahwa hasil tersebut benar-benar datang dari endpoint yang dibangun, lengkap dengan waktu responsnya.'),
+  p('Pencatatannya tidak dipasang di tiap fungsi, melainkan pada satu pembungkus fetch yang dilewati semua panggilan. Menambah endpoint baru otomatis ikut tercatat tanpa menyentuh panel sama sekali.'),
+  table(
+    ['Perilaku', 'Alasan'],
+    [
+      ['Panel berada di luar layar login maupun layar aplikasi', 'Agar permintaan login itu sendiri ikut tercatat, bukan baru mulai setelah masuk'],
+      ['Dapat digeser dan diubah ukurannya, dengan batas', 'Ukuran minimum 300x200 dan selalu utuh di dalam viewport, sehingga tidak bisa tersesat di luar layar'],
+      ['Posisi dan ukuran diingat', 'Penyaji dapat menatanya sekali sebelum presentasi'],
+      ['Isian password disamarkan', 'Panel ini tampil di depan penonton; request login yang sah pun tidak boleh memamerkan passwordnya'],
+      ['Bawaannya mengecil di layar sempit', 'Di bawah 1000 piksel panel pasti menutupi kartu login'],
+    ],
+    [3200, 5826]
+  ),
 
   h2('11.6 Matriks Izin'),
   p('Halaman ini menyusun seluruh permission sebagai baris dan seluruh role sebagai kolom, sehingga perbedaan wewenang antar role terlihat sebagai perbedaan panjang kolom.'),
@@ -447,6 +459,13 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   p('Baris roles.create dan roles.update memperlihatkan pembatasan yang paling penting: keduanya hanya dimiliki superadmin. Inilah yang mencegah seorang admin menaikkan wewenangnya sendiri, dan pada tampilan ini alasannya terlihat tanpa perlu membaca kode.'),
   p('Kolom role dapat disunting langsung dari halaman ini, kecuali kolom superadmin yang sengaja dikunci agar peragaan tidak berisiko mengunci akun yang sedang dipakai.'),
 
+  h2('11.8 Dua Kesalahan yang Ditemukan Justru Karena Ada Antarmuka'),
+  p('Membangun antarmuka ternyata memunculkan dua kesalahan yang tidak pernah terlihat selama pengujian dilakukan lewat terminal, karena keduanya hanya muncul ketika seseorang masuk sebagai pengguna selain superadmin.'),
+  p('Pertama, endpoint daftar izin milik sendiri dijaga oleh izin permissions.read. Akibatnya pengguna dengan role admin maupun user sama sekali tidak dapat masuk ke antarmuka: proses masuk mengambil daftar izin, permintaan itu ditolak, dan seluruh proses gagal. Penjagaan tersebut memang salah tempat sejak awal, dipasang pada tahap kelima ketika endpoint katalog permission belum ada sehingga izin itu belum punya rumah. Setelah katalog dibuat pada bab ini, penjagaan dipindahkan ke tempat yang benar dan endpoint milik sendiri cukup memerlukan token yang sah.'),
+  p('Kedua, dan ini akibat langsung dari perbaikan pertama: controller endpoint tersebut membaca daftar izin dari variabel yang diisi oleh middleware otorisasi. Begitu middleware itu dilepas, sumber datanya hilang dan jawabannya menjadi kosong tanpa menimbulkan error sama sekali. Perbaikannya membuat controller mengambil datanya sendiri.'),
+  quote('Pelajarannya: controller tidak boleh bergantung pada middleware otorisasi untuk DATANYA. Ketergantungan seperti itu tidak terlihat saat membaca route, dan ia rusak diam-diam begitu penjagaan route diubah.'),
+  p('Keduanya adalah jenis kesalahan yang sama seperti yang dicatat di Bab 9: dua tempat yang harus cocok, dan yang tidak cocok tidak menghasilkan error apa pun. Yang membedakan kali ini adalah cara menemukannya. Selama pengujian hanya dilakukan sebagai superadmin, keduanya tidak pernah muncul. Antarmuka memaksa mencoba peran lain, dan di situlah keduanya terungkap.'),
+  quote('Membangun cara memperagakan sistem ternyata sekaligus menjadi cara mengujinya.'),
   h2('11.7 Pelacakan Cakupan Endpoint'),
   p('Halaman Status dan Cakupan memuat daftar seluruh 25 endpoint. Endpoint yang sudah pernah dipanggil dari antarmuka selama sesi berjalan ditandai hijau, disertai penghitung cakupan.'),
   p('Fungsinya sederhana tetapi berguna saat peragaan: ia membuktikan bahwa seluruh endpoint benar-benar dapat diakses melalui antarmuka, bukan sekadar tercantum di dokumen.'),
@@ -461,7 +480,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
       ['POST /api/v1/auth/login', 'Masuk dan memperoleh token', 'Terbuka, dibatasi 5 kali per 15 menit'],
       ['GET /api/v1/auth/me', 'Melihat identitas pemilik token', 'Token sah'],
       ['POST /api/v1/auth/logout', 'Mencabut token yang sedang dipakai', 'Token sah'],
-      ['GET /api/v1/auth/permissions', 'Melihat daftar izin sendiri', 'permissions.read'],
+      ['GET /api/v1/auth/permissions', 'Melihat daftar izin sendiri', 'Token sah'],
       ['POST /api/v1/auth/forgot-password', 'Meminta tautan reset password', 'Terbuka, dibatasi 3 kali per jam'],
       ['POST /api/v1/auth/reset-password', 'Mengganti password dengan token reset', 'Terbuka'],
       ['GET /api/v1/profile', 'Melihat profil sendiri beserta avatar', 'profile.read'],
