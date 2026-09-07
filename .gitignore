@@ -3,9 +3,10 @@ node_modules/
 
 # ---------- Rahasia ----------
 # .env berisi kredensial asli dan tidak boleh masuk repositori.
-# .env.example dan .env.test sengaja TIDAK diabaikan:
+# .env.example, .env.test, dan .env.unit sengaja TIDAK diabaikan:
 #   .env.example  -> daftar variabel yang harus diisi, tanpa nilai rahasia
 #   .env.test     -> hanya berisi NODE_ENV=test, bukan rahasia
+#   .env.unit     -> nilai palsu untuk pengujian unit, bukan rahasia
 .env
 .env.local
 .env.production

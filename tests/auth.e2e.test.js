@@ -23,8 +23,26 @@ const call = async (path, { method = 'GET', token, body } = {}) => {
   return { status: response.status, body: await response.json().catch(() => ({})) };
 };
 
+/**
+ * Penghitung pembatas laju dibersihkan sebelum pengujian dimulai.
+ *
+ * Setiap kali berkas ini dijalankan, ia sengaja melakukan beberapa percobaan
+ * login yang gagal. Batasnya lima kegagalan per lima belas menit, jadi tanpa
+ * pembersihan ini, menjalankan pengujian tiga kali berturut-turut akan membuat
+ * separuhnya gagal dengan status 429 — kegagalan yang tampak seperti bug
+ * padahal murni akibat pengujian sebelumnya.
+ */
+const resetRateLimiter = async () => {
+  const keys = await redisClient.keys('ratelimit:*');
+
+  if (keys.length > 0) {
+    await redisClient.del(keys);
+  }
+};
+
 test.before(async () => {
   await connectRedis();
+  await resetRateLimiter();
 
   server = app.listen(0);
   baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;

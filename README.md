@@ -79,7 +79,50 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm test` | Menjalankan 15 pengujian end-to-end |
+| `npm run test:unit` | 99 pengujian unit — tanpa Docker, tanpa database |
+| `npm run test:e2e` | 15 pengujian end-to-end — perlu seluruh layanan hidup |
+| `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
+| `npm test` | Unit lalu end-to-end |
+
+---
+
+## Pengujian
+
+Dua lapis, dengan kebutuhan yang sangat berbeda.
+
+**Pengujian unit** (`tests/unit/`) tidak menyentuh satu pun layanan. Seluruh
+dependensi digantikan objek palsu yang disuntikkan lewat constructor, jadi
+seluruhnya selesai dalam beberapa detik dan langsung jalan di mesin yang baru
+meng-clone repositori ini:
+
+```bash
+npm run test:unit
+```
+
+Berkas `.env.unit` sengaja ikut di-commit karena isinya bukan rahasia —
+alamat layanannya diisi `tidak-dipakai`, yang justru menjadi pembuktian bahwa
+tidak ada pengujian unit yang benar-benar menghubungi apa pun.
+
+**Pengujian end-to-end** (`tests/*.e2e.test.js`) menyalakan aplikasi
+sungguhan dan memanggil endpoint lewat HTTP. Ia memerlukan `docker compose up
+-d` dan `npm run test:db:setup` lebih dulu.
+
+Ambang cakupan dipasang di `npm run test:coverage` dan membuat perintahnya
+gagal bila turun di bawah 80 persen baris maupun cabang.
+
+| Berkas | Baris | Cabang |
+|---|---|---|
+| `modules/auth/auth.service.js` | 100% | 100% |
+| `modules/auth/password.service.js` | 100% | 100% |
+| `services/permission.service.js` | 97,5% | 93,9% |
+| `modules/roles/roles.service.js` | 92,4% | 95,8% |
+| `repositories/passwordResetToken.repository.js` | 100% | 100% |
+| `repositories/tokenDenylist.repository.js` | 100% | 100% |
+| `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
+
+Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
+Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
+dijalankan — bagian itu dibuktikan oleh pengujian end-to-end.
 
 ---
 
@@ -137,6 +180,7 @@ src/
 
 public/            antarmuka console (HTML, CSS, JS tanpa build)
 scripts/           perkakas pengembangan (generator konstanta izin)
+tests/unit/        pengujian unit, tanpa layanan apa pun
 tests/             pengujian end-to-end
 docs/              laporan teknis dan bahan presentasi
 ```

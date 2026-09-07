@@ -601,6 +601,104 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   ]),
   br(),
 
+  h2('12.3 Pengujian Unit'),
+
+  h3('Masalah yang ditemukan'),
+  p('Sampai bab sebelumnya, seluruh pengujian yang ada berupa end-to-end: aplikasi sungguhan dinyalakan, lalu endpoint dipanggil lewat HTTP. Pengujiannya sahih, tetapi ada dua hal yang tidak dapat dijangkaunya.'),
+  p('Pertama, ia memerlukan seluruh layanan hidup. Menjalankan satu pengujian berarti menyalakan PostgreSQL, Redis, RabbitMQ, dan MinIO terlebih dahulu. Kedua, dan ini yang lebih penting, ada aturan-aturan yang secara sengaja tidak terlihat dari luar. Contohnya penyetaraan waktu respons pada login: dari luar, jawabannya sama saja. Yang berbeda hanyalah lamanya, dan itu tidak dapat diperiksa lewat isi jawaban.'),
+  quote('Pengujian end-to-end membuktikan sistemnya bekerja. Pengujian unit membuktikan alasan di balik cara ia bekerja.'),
+
+  h3('Yang membuatnya mungkin'),
+  p('Perpindahan ke class pada bagian sebelumnya bukan sekadar perkara gaya penulisan. Karena setiap service menerima dependensinya lewat constructor, seluruh basis data dan Redis dapat digantikan objek palsu. Inilah imbal hasil dari restrukturisasi itu.'),
+  ...code([
+    '// dipakai sehari-hari - dependensi sungguhan dari nilai bawaan',
+    'authService.login({ email, password })',
+    '',
+    '// dipakai di pengujian - dependensi palsu, tanpa satu pun layanan hidup',
+    'new AuthService({ users: userRepositoryPalsu, denylist: denylistPalsu })',
+  ]),
+  caption('Gambar 12.4 — Dependensi yang sama, sumber yang berbeda'),
+  p('Seluruh objek palsu dikumpulkan di satu berkas, tests/unit/fakes.js. Setiap metodenya mencatat jumlah dan argumen pemanggilannya, dan seluruh pemanggilan juga dicatat ke satu daftar bersama sehingga URUTAN antar objek pun dapat dibuktikan — dipakai misalnya untuk memastikan password diubah sebelum token resetnya dihapus.'),
+  p('Seluruhnya memakai node:test, penguji yang sudah menyatu di dalam Node, beserta node:assert. Tidak ada satu pun paket pengujian yang dipasang. Alasannya sama dengan yang mendasari keputusan-keputusan sebelumnya di laporan ini: kemampuan yang sudah tersedia tidak perlu ditambah dari luar.'),
+
+  h3('Apa yang diuji, dan mengapa justru itu'),
+  p('Sasarannya bukan sekadar mengejar angka cakupan, melainkan aturan-aturan yang kalau rusak tidak akan menimbulkan error apa pun.'),
+  table(
+    ['Yang dibuktikan', 'Kalau ia rusak'],
+    [
+      ['Pesan untuk email tak terdaftar sama dengan pesan untuk password salah', 'Endpoint login dapat dipakai memetakan email mana yang terdaftar'],
+      ['Jalur email tak terdaftar tetap memakan waktu perbandingan bcrypt', 'Selisih waktu responsnya sendiri membocorkan email mana yang terdaftar'],
+      ['Status aktif diperiksa setelah password, bukan sebelum', 'Jawaban 403 mengonfirmasi bahwa email tersebut terdaftar'],
+      ['Masa simpan entri cabut sepanjang sisa umur token', 'Token yang sudah di-logout berlaku kembali setelah entrinya hilang'],
+      ['Token reset disimpan sebagai hash, bukan token aslinya', 'Isi Redis yang bocor dapat langsung dipakai mengganti password orang lain'],
+      ['Password diubah lebih dulu, token dihapus kemudian', 'Pembaruan yang gagal meninggalkan pengguna dengan tautan yang sudah mati'],
+      ['Kegagalan Redis pada cache izin dilewati, bukan menjatuhkan permintaan', 'Redis yang tersendat menjatuhkan seluruh endpoint terlindungi'],
+      ['Perubahan izin role menaikkan versi cache, bukan menghapus per pengguna', 'Sebagian pengguna masih memakai izin lama sampai cache-nya kedaluwarsa'],
+      ['Nama role superadmin tidak dapat diubah', 'Perlindungan akun superadmin berhenti bekerja tanpa error'],
+      ['Role yang masih dipakai tidak dapat dihapus', 'ON DELETE CASCADE mencabut wewenang sejumlah pengguna secara diam-diam'],
+      ['Setiap token punya jti yang berbeda', 'Mencabut satu token ikut mencabut token lain'],
+    ],
+    [4200, 4826]
+  ),
+  p('Perhatikan bahwa hampir seluruh baris di kolom kanan berbunyi "tanpa error", "diam-diam", atau "senyap". Itu bukan kebetulan. Jenis kegagalan itulah yang paling mahal, dan justru yang paling sulit ditemukan lewat pengujian dari luar.'),
+
+  h3('Satu pengujian yang mengukur waktu, dan alasannya'),
+  p('Satu pengujian di antaranya bekerja dengan cara yang tidak biasa: ia mengukur lamanya proses, bukan isi jawabannya. Yang dibuktikan adalah bahwa percobaan login dengan email tak terdaftar tetap menjalankan perbandingan bcrypt tiruan.'),
+  p('Kalau perbandingan tiruan itu dihapus, jalur "email tidak ada" selesai dalam waktu di bawah satu milidetik, sedangkan jalur "email ada" memakan lebih dari seratus milidetik. Selisih sebesar itu dapat diukur dari jarak jauh, dan ia membocorkan email mana yang terdaftar tanpa perlu melihat isi jawabannya sama sekali.'),
+  p('Ambang batasnya dibuat sangat longgar, sepuluh milidetik. Bcrypt dengan cost dua belas jauh di atasnya pada mesin apa pun, sedangkan jalur tanpa bcrypt jauh di bawahnya. Jarak antara keduanya begitu lebar sehingga pengujian ini tidak akan gagal karena mesin yang lambat, tetapi tetap langsung gagal begitu perbandingan tiruannya hilang.'),
+
+  h3('Cakupan, dan apa yang sengaja tidak diuji'),
+  table(
+    ['Berkas', 'Baris', 'Cabang'],
+    [
+      ['modules/auth/auth.service.js', '100%', '100%'],
+      ['modules/auth/password.service.js', '100%', '100%'],
+      ['services/permission.service.js', '97,5%', '93,9%'],
+      ['modules/roles/roles.service.js', '92,4%', '95,8%'],
+      ['repositories/passwordResetToken.repository.js', '100%', '100%'],
+      ['repositories/tokenDenylist.repository.js', '100%', '100%'],
+      ['utils/token.js, utils/response.js, utils/AppError.js', '100%', '100%'],
+      ['Keseluruhan', '88,8%', '95,4%'],
+    ],
+    [5000, 2000, 2026]
+  ),
+  p('Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit. Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya dijalankan — dan pengujian semacam itu tetap lulus meski nama kolomnya salah. Bagian itu dibuktikan oleh pengujian end-to-end, yang memakai basis data sungguhan.'),
+  p('Hal yang sama berlaku untuk isi transaksi pada pembuatan role. Yang diuji unit adalah seluruh penolakan yang terjadi sebelum transaksi dibuka; isi transaksinya sendiri diserahkan ke pengujian end-to-end.'),
+  quote('Cakupan yang tinggi bukan tujuannya. Yang dicari adalah pengujian yang benar-benar gagal ketika sesuatu rusak.'),
+
+  h3('Ambang cakupan yang ditegakkan, bukan diharapkan'),
+  p('Perintah pengujian cakupan dipasangi ambang delapan puluh persen untuk baris maupun cabang. Kalau angkanya turun di bawah itu, perintahnya gagal — bukan sekadar mencetak peringatan. Dengan begitu standar tersebut tidak bergantung pada ingatan siapa pun.'),
+
+  h3('Dua lapis dengan kebutuhan yang berbeda'),
+  table(
+    ['Pembanding', 'Pengujian unit', 'Pengujian end-to-end'],
+    [
+      ['Jumlah', '99', '15'],
+      ['Waktu', 'sekitar 2 detik', 'sekitar 20 detik'],
+      ['Kebutuhan', 'tidak ada', 'seluruh layanan hidup'],
+      ['Yang dibuktikan', 'alasan di balik cara kerjanya', 'sistemnya benar-benar bekerja'],
+    ],
+    [2200, 3400, 3426]
+  ),
+  p('Berkas .env.unit sengaja ikut di-commit karena isinya bukan rahasia. Alamat layanannya diisi kata "tidak-dipakai", yang justru menjadi pembuktian tambahan: kalau ada satu saja pengujian unit yang benar-benar mencoba menghubungi sesuatu, ia akan langsung gagal karena alamat itu tidak dapat diterjemahkan.'),
+
+  h3('Satu kegagalan palsu yang muncul di sini'),
+  p('Saat menjalankan seluruh pengujian berulang kali untuk memastikan hasilnya konsisten, empat pengujian end-to-end tiba-tiba gagal — padahal sepuluh menit sebelumnya semuanya lulus. Statusnya 429, bukan 200.'),
+  p('Penyebabnya bukan kode yang baru ditulis. Pengujian end-to-end memang sengaja melakukan beberapa percobaan login yang gagal untuk membuktikan pesannya seragam, dan batas pembatas laju adalah lima kegagalan per lima belas menit. Menjalankan pengujian tiga kali berturut-turut melewati batas itu.'),
+  quote('Kegagalan yang tampak seperti bug, padahal murni akibat pengujian sebelumnya. Pengujian yang tidak dapat diulang sama membingungkannya dengan pengujian yang salah.'),
+  p('Perbaikannya membuat kedua berkas pengujian membersihkan penghitung pembatas laju di Redis sebelum mulai. Setelah itu, seluruh rangkaian dapat dijalankan berkali-kali berturut-turut dengan hasil yang sama.'),
+
+  h3('Hasil pengujian'),
+  ...code([
+    'Pengujian unit                 : 99 lulus, 0 gagal, tanpa layanan hidup',
+    'Pengujian end-to-end           : 15 lulus, 0 gagal',
+    'Cakupan baris                  : 88,8 persen (ambang 80)',
+    'Cakupan cabang                 : 95,4 persen (ambang 80)',
+    'Ambang diuji dengan angka 95   : perintah gagal sebagaimana mestinya',
+    'Dijalankan dua kali berturutan : hasil sama, 114 lulus keduanya',
+  ]),
+  br(),
+
   h1('Lampiran A — Daftar Endpoint'),
   table(
     ['Metode dan Alamat', 'Fungsi', 'Izin yang Dibutuhkan'],
