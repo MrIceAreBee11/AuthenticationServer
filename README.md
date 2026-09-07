@@ -75,7 +75,8 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run dev` | API dengan muat ulang otomatis |
 | `npm run worker` | Proses pengirim email |
 | `npm run db:migrate` | Menjalankan migration |
-| `npm run db:seed` | Mengisi role, permission, dan akun superadmin |
+| `npm run db:seed` | Mengisi role, pemetaan izin, dan akun superadmin |
+| `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
 | `npm test` | Menjalankan 15 pengujian end-to-end |
@@ -137,6 +138,37 @@ public/            antarmuka console (HTML, CSS, JS tanpa build)
 tests/             pengujian end-to-end
 docs/              laporan teknis dan bahan presentasi
 ```
+
+### Menambah permission baru
+
+Katalog izin berada di **migration**, bukan di seeder — karena kode bergantung
+padanya, dan `db:migrate` dijamin jalan di setiap deploy sedangkan `db:seed`
+belum tentu. Kalau katalog absen, seluruh endpoint terlindungi menjawab 403
+untuk semua orang termasuk superadmin, tanpa error apa pun.
+
+```bash
+# 1. buat migration berisi izin baru
+npx sequelize-cli migration:generate --name add-users-export-permission
+
+# 2. jalankan, lalu perbarui berkas konstanta dari database
+npm run db:migrate
+npm run gen:permissions
+
+# 3. pakai konstantanya di route
+#    authorize(PERMISSIONS.USERS_EXPORT)
+```
+
+`src/constants/permissions.js` **dibuat otomatis** — jangan diedit manual.
+Database adalah sumber kebenarannya.
+
+Dua pengaman berjalan tanpa perlu diingat:
+
+- `authorize()` mencatat sendiri setiap izin yang diminta route saat aplikasi dimuat
+- Saat start, daftar itu dibandingkan dengan isi tabel `permissions`. Ada yang
+  tidak cocok → aplikasi **menolak menyala** dengan pesan yang menyebutkan izin
+  mana yang bermasalah
+
+---
 
 **Aturan penempatan berkas baru** — berhenti di jawaban "ya" pertama:
 

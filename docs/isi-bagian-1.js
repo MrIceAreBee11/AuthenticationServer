@@ -371,7 +371,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   p('Migration menyimpan fakta bahwa kolom password_changed_at ditambahkan pada tanggal tertentu. Model hanya peduli bahwa kolom itu ada sekarang. Karena itulah migration tidak boleh disunting setelah pernah dijalankan di komputer orang lain — Sequelize mencatat migration yang sudah berjalan berdasarkan nama berkasnya, sehingga suntingan pada berkas lama tidak akan pernah dijalankan ulang.'),
 
   h2('4.4 Isi Data Awal'),
-  p('Seeder membuat sebelas permission, tiga role, dan satu akun superadmin. Format nama permission mengikuti pola sumber-daya diikuti tindakan.'),
+  p('Katalog sebelas permission dibuat oleh migration, sedangkan seeder mengurus tiga role, pemetaan role ke izin, dan satu akun superadmin. Alasan pemisahan ini dijelaskan di Bab 12. Format nama permission mengikuti pola sumber-daya diikuti tindakan.'),
   table(
     ['Role', 'Permission yang Dimiliki', 'Jumlah'],
     [

@@ -471,6 +471,64 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   p('Fungsinya sederhana tetapi berguna saat peragaan: ia membuktikan bahwa seluruh endpoint benar-benar dapat diakses melalui antarmuka, bukan sekadar tercantum di dokumen.'),
   br(),
 
+  /* ═══════════════════ BAB 12 ═══════════════════ */
+  h1('BAB 12 — Perbaikan Berdasarkan Tinjauan'),
+  p('Setelah pemaparan internal, terdapat sejumlah masukan dari pembimbing yang ditindaklanjuti. Bab ini mencatat perbaikannya beserta alasan di baliknya.'),
+
+  h2('12.1 Katalog Izin Dipindahkan ke Migration'),
+
+  h3('Masalah yang ditemukan'),
+  p('Sebelumnya, katalog sebelas izin ditulis tangan di dua tempat: sebagai konstanta di src/constants/permissions.js, dan sebagai daftar yang disisipkan oleh seeder. Menambah satu izin berarti menyunting dua berkas, dan melewatkan salah satunya menimbulkan kegagalan yang sangat sulit dilacak.'),
+  p('Kegagalannya begini. Izin ditambahkan ke konstanta dan dipakai di route, tetapi tidak ikut ditambahkan ke daftar seeder. Akibatnya izin tersebut tidak punya baris di basis data. Karena izin superadmin sendiri diambil dari baris basis data, bukan dari konstanta di kode, maka tidak ada satu pengguna pun yang dapat melewati pemeriksaan itu — termasuk superadmin. Endpoint tersebut menjawab 403 selamanya, tanpa satu pun error di log.'),
+  p('Ada masalah kedua yang lebih luas. Katalog izin berada di seeder, sedangkan perintah seeder sering dilewati pada saat deploy karena isinya dianggap data contoh. Perintah migration selalu dijalankan karena ia mengubah struktur. Kalau seeder terlewat di sebuah environment, tabel izin kosong dan seluruh endpoint terlindungi menolak semua orang.'),
+
+  h3('Perbaikan'),
+  p('Arah aliran datanya dibalik. Basis data dijadikan sumber kebenaran, dan berkas konstanta menjadi turunannya.'),
+  ...code([
+    'SEBELUM                              SESUDAH',
+    'constants/permissions.js             migration (daftar izin, teks literal)',
+    '       | diimpor seeder                     | db:migrate - SELALU jalan',
+    '   seeder                               BASIS DATA  <- sumber kebenaran',
+    '       | db:seed - bisa terlewat            | npm run gen:permissions',
+    '  BASIS DATA                          constants/permissions.js  <- DIBUAT SCRIPT',
+    '                                            |',
+    '                                      authorize(PERMISSIONS.USERS_CREATE)',
+  ]),
+  caption('Gambar 12.1 — Arah aliran katalog izin sebelum dan sesudah perbaikan'),
+  table(
+    ['Bagian', 'Perubahan'],
+    [
+      ['Migration baru', 'Menyisipkan sebelas izin dengan ON CONFLICT DO NOTHING, sehingga aman dijalankan pada basis data yang izinnya sudah terisi'],
+      ['Seeder RBAC', 'Berhenti menyisipkan izin. Kini hanya mengurus role dan pemetaannya, memakai teks literal alih-alih konstanta'],
+      ['Script generator', 'Membaca tabel izin lalu menulis berkas konstanta, dengan header penanda bahwa berkas itu tidak boleh disunting manual'],
+      ['Middleware authorize', 'Mencatat sendiri setiap nama izin yang diminta route saat aplikasi dimuat'],
+      ['Pemeriksaan saat start', 'Membandingkan daftar yang dicatat middleware dengan isi basis data. Ada yang tidak cocok, aplikasi menolak menyala'],
+    ],
+    [2200, 6826]
+  ),
+
+  h3('Kenapa seeder memakai teks literal, bukan konstanta'),
+  p('Seeder dan migration adalah catatan sejarah. Kalau seeder mengimpor berkas konstanta, perilakunya akan berubah secara retroaktif setiap kali konstanta itu diubah — padahal yang seharusnya ia gambarkan adalah keadaan pada saat ia pertama dijalankan. Prinsip ini sama dengan aturan pada Bab 4: migration yang sudah dijalankan tidak boleh disunting.'),
+  p('Satu pengecualian dibuat untuk superadmin. Alih-alih menuliskan daftar izinnya, seeder mengambil seluruh baris yang ada di tabel izin. Dengan begitu, izin yang ditambahkan lewat migration baru tidak mungkin terlewat dari superadmin.'),
+
+  h3('Dua pengaman yang berjalan tanpa perlu diingat'),
+  p('Yang membuat perbaikan ini benar-benar menutup lubangnya bukan generator, melainkan dua pemeriksaan berikut.'),
+  num('Middleware authorize menolak nama izin yang bukan teks. Salah ketik pada konstanta menghasilkan nilai undefined, dan itu tertangkap pada saat route didefinisikan, yaitu ketika aplikasi dimuat.'),
+  num('Saat start, daftar izin yang dipakai seluruh route dibandingkan dengan isi tabel izin. Ada yang tidak ada, aplikasi menolak menyala dan menyebutkan izin mana beserta perintah yang harus dijalankan.'),
+  quote('Kegagalan yang tadinya berupa 403 senyap selamanya, sekarang berupa satu pesan jelas pada detik pertama aplikasi dijalankan.'),
+  p('Ini penerapan prinsip fail fast yang sama seperti pada pemeriksaan variabel environment, koneksi basis data, dan kredensial superadmin di seeder.'),
+
+  h3('Hasil pengujian'),
+  ...code([
+    'Izin dikumpulkan authorize()   : 11, cocok persis dengan basis data',
+    'Katalog benar                  : lolos',
+    'Ada izin yang tidak ada di DB  : ditolak, menyebutkan nama izinnya',
+    'Konstanta salah ketik          : ditolak saat route didefinisikan',
+    'Basis data dibangun dari nol   : 11 izin, superadmin 11, admin 7, user 2',
+    'Pengujian end-to-end           : 15 lulus, 0 gagal',
+  ]),
+  br(),
+
   h1('Lampiran A — Daftar Endpoint'),
   table(
     ['Metode dan Alamat', 'Fungsi', 'Izin yang Dibutuhkan'],

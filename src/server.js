@@ -3,6 +3,8 @@ const env = require('./config/env');
 const { sequelize } = require('./database');
 const { connectRedis, redisClient } = require('./redis');
 const { closeQueue } = require('./queue');
+const authorize = require('./middlewares/authorize');
+const { verifyPermissionCatalog } = require('./services/permission.service');
 
 const SHUTDOWN_TIMEOUT_MS = 10000;
 
@@ -16,6 +18,13 @@ const startServer = async () => {
 
     await connectRedis();
     console.log('Koneksi Redis berhasil');
+
+    // Route sudah termuat saat ./app di-require, jadi daftar izin yang dipakai
+    // sudah lengkap di titik ini.
+    const catalog = await verifyPermissionCatalog(authorize.getRequiredPermissions());
+    console.log(
+      `Katalog izin terverifikasi (${catalog.required} dipakai route, ${catalog.available} tersedia di database)`
+    );
 
     server = app.listen(env.port, () => {
       console.log(`Server berjalan di http://localhost:${env.port} [${env.nodeEnv}]`);

@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "worker": "node --watch src/workers/emailWorker.js",
     "worker:start": "node src/workers/emailWorker.js",
+    "gen:permissions": "node scripts/generate-permissions.js",
     "test": "node --env-file=.env.test --test",
     "test:db:setup": "sequelize-cli db:create --env test && sequelize-cli db:migrate --env test && sequelize-cli db:seed:all --env test",
     "test:db:drop": "sequelize-cli db:drop --env test",

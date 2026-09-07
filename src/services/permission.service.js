@@ -1,4 +1,4 @@
-const { User } = require('../database');
+const { User, Permission } = require('../database');
 const { redisClient } = require('../redis');
 
 const CACHE_PREFIX = 'permissions:user:';
@@ -122,8 +122,39 @@ const invalidateUserPermissions = async (userId) => {
   }
 };
 
+/**
+ * Memastikan setiap izin yang diperiksa oleh route benar-benar ada barisnya di
+ * database. Dipanggil sekali saat aplikasi start.
+ *
+ * Tanpa pemeriksaan ini, izin yang ada di kode tetapi tidak ada di database
+ * membuat endpoint-nya menjawab 403 untuk semua orang — termasuk superadmin,
+ * karena izin superadmin berasal dari baris database, bukan dari kode.
+ * Kegagalannya senyap: tidak ada error, tidak ada log.
+ *
+ * @param {string[]} requiredNames nama izin yang dipakai seluruh route
+ */
+const verifyPermissionCatalog = async (requiredNames) => {
+  if (requiredNames.length === 0) {
+    return { required: 0, available: 0 };
+  }
+
+  const rows = await Permission.findAll({ attributes: ['name'] });
+  const availableNames = new Set(rows.map((row) => row.name));
+  const missingNames = requiredNames.filter((name) => !availableNames.has(name));
+
+  if (missingNames.length > 0) {
+    throw new Error(
+      `Izin berikut diperiksa oleh route tetapi tidak ada di database: ${missingNames.join(', ')}. ` +
+        'Jalankan "npm run db:migrate", lalu "npm run gen:permissions".'
+    );
+  }
+
+  return { required: requiredNames.length, available: availableNames.size };
+};
+
 module.exports = {
   getUserPermissions,
   invalidateUserPermissions,
   bumpPermissionVersion,
+  verifyPermissionCatalog,
 };
