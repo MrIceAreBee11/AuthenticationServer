@@ -1,52 +1,61 @@
-const usersService = require('./users.service');
 const { successResponse } = require('../../utils/response');
+const { usersService } = require('./users.service');
 
-const listUsers = async (req, res) => {
-  const { page, limit } = req.query;
+class UsersController {
+  constructor({ users = usersService } = {}) {
+    this.users = users;
+  }
 
-  const { users, meta } = await usersService.listUsers({ page, limit });
+  list = async (req, res) => {
+    const { page, limit } = req.query;
 
-  return successResponse(res, 200, 'Daftar user berhasil diambil', { users }, meta);
-};
+    const { users, meta } = await this.users.list({ page, limit });
 
-const getUser = async (req, res) => {
-  const user = await usersService.getUser(req.params.id);
+    return successResponse(res, 200, 'Daftar user berhasil diambil', { users }, meta);
+  };
 
-  return successResponse(res, 200, 'Detail user berhasil diambil', { user });
-};
+  getById = async (req, res) => {
+    const user = await this.users.getById(req.params.id);
 
-const createUser = async (req, res) => {
-  const { email, password, fullName, phone, roleIds } = req.body ?? {};
+    return successResponse(res, 200, 'Detail user berhasil diambil', { user });
+  };
 
-  const user = await usersService.createUser({ email, password, fullName, phone, roleIds });
+  create = async (req, res) => {
+    const { email, password, fullName, phone, roleIds } = req.body ?? {};
 
-  return successResponse(res, 201, 'User berhasil dibuat', { user });
-};
+    const user = await this.users.create({ email, password, fullName, phone, roleIds });
 
-const updateUser = async (req, res) => {
-  const { fullName, phone, isActive } = req.body ?? {};
+    return successResponse(res, 201, 'User berhasil dibuat', { user });
+  };
 
-  const user = await usersService.updateUser(req.user.id, req.params.id, {
-    fullName,
-    phone,
-    isActive,
-  });
+  // req.user.id diteruskan sebagai pelaku, agar service dapat menegakkan
+  // aturan "tidak boleh mengelola diri sendiri" dan "hanya superadmin boleh
+  // mengelola superadmin". Identitas pelaku selalu dari token, bukan dari body.
+  update = async (req, res) => {
+    const { fullName, phone, isActive } = req.body ?? {};
 
-  return successResponse(res, 200, 'User berhasil diperbarui', { user });
-};
+    const user = await this.users.update(req.user.id, req.params.id, {
+      fullName,
+      phone,
+      isActive,
+    });
 
-const setUserRoles = async (req, res) => {
-  const { roleIds } = req.body ?? {};
+    return successResponse(res, 200, 'User berhasil diperbarui', { user });
+  };
 
-  const user = await usersService.setUserRoles(req.user.id, req.params.id, roleIds);
+  setRoles = async (req, res) => {
+    const { roleIds } = req.body ?? {};
 
-  return successResponse(res, 200, 'Role user berhasil diperbarui', { user });
-};
+    const user = await this.users.setRoles(req.user.id, req.params.id, roleIds);
 
-const deleteUser = async (req, res) => {
-  await usersService.deleteUser(req.user.id, req.params.id);
+    return successResponse(res, 200, 'Role user berhasil diperbarui', { user });
+  };
 
-  return successResponse(res, 200, 'User berhasil dihapus');
-};
+  remove = async (req, res) => {
+    await this.users.remove(req.user.id, req.params.id);
 
-module.exports = { listUsers, getUser, createUser, updateUser, setUserRoles, deleteUser };
+    return successResponse(res, 200, 'User berhasil dihapus');
+  };
+}
+
+module.exports = { UsersController, usersController: new UsersController() };

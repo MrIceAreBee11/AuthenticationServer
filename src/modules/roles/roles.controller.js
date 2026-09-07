@@ -1,63 +1,61 @@
-const rolesService = require('./roles.service');
 const { successResponse } = require('../../utils/response');
+const { rolesService } = require('./roles.service');
 
-const listRoles = async (req, res) => {
-  const roles = await rolesService.listRoles();
+class RolesController {
+  constructor({ roles = rolesService } = {}) {
+    this.roles = roles;
+  }
 
-  return successResponse(res, 200, 'Daftar role berhasil diambil', { roles });
-};
+  list = async (req, res) => {
+    const roles = await this.roles.list();
 
-const getRole = async (req, res) => {
-  const role = await rolesService.getRole(req.params.id);
+    return successResponse(res, 200, 'Daftar role berhasil diambil', { roles });
+  };
 
-  return successResponse(res, 200, 'Detail role berhasil diambil', { role });
-};
+  getById = async (req, res) => {
+    const role = await this.roles.getById(req.params.id);
 
-const listPermissions = async (req, res) => {
-  const { permissions, groups } = await rolesService.listPermissions();
+    return successResponse(res, 200, 'Detail role berhasil diambil', { role });
+  };
 
-  return successResponse(res, 200, 'Daftar permission berhasil diambil', {
-    permissions,
-    groups,
-  });
-};
+  listPermissions = async (req, res) => {
+    const { permissions, groups } = await this.roles.listPermissions();
 
-const createRole = async (req, res) => {
-  const { name, description, permissionIds } = req.body ?? {};
+    return successResponse(res, 200, 'Daftar permission berhasil diambil', {
+      permissions,
+      groups,
+    });
+  };
 
-  const role = await rolesService.createRole({ name, description, permissionIds });
+  create = async (req, res) => {
+    const { name, description, permissionIds } = req.body ?? {};
 
-  return successResponse(res, 201, 'Role berhasil dibuat', { role });
-};
+    const role = await this.roles.create({ name, description, permissionIds });
 
-const updateRole = async (req, res) => {
-  const { name, description } = req.body ?? {};
+    return successResponse(res, 201, 'Role berhasil dibuat', { role });
+  };
 
-  const role = await rolesService.updateRole(req.params.id, { name, description });
+  update = async (req, res) => {
+    const { name, description } = req.body ?? {};
 
-  return successResponse(res, 200, 'Role berhasil diperbarui', { role });
-};
+    const role = await this.roles.update(req.params.id, { name, description });
 
-const setRolePermissions = async (req, res) => {
-  const { permissionIds } = req.body ?? {};
+    return successResponse(res, 200, 'Role berhasil diperbarui', { role });
+  };
 
-  const role = await rolesService.setRolePermissions(req.params.id, permissionIds);
+  setPermissions = async (req, res) => {
+    const { permissionIds } = req.body ?? {};
 
-  return successResponse(res, 200, 'Permission role berhasil diperbarui', { role });
-};
+    const role = await this.roles.setPermissions(req.params.id, permissionIds);
 
-const deleteRole = async (req, res) => {
-  await rolesService.deleteRole(req.params.id);
+    return successResponse(res, 200, 'Permission role berhasil diperbarui', { role });
+  };
 
-  return successResponse(res, 200, 'Role berhasil dihapus');
-};
+  remove = async (req, res) => {
+    await this.roles.remove(req.params.id);
 
-module.exports = {
-  listRoles,
-  getRole,
-  listPermissions,
-  createRole,
-  updateRole,
-  setRolePermissions,
-  deleteRole,
-};
+    return successResponse(res, 200, 'Role berhasil dihapus');
+  };
+}
+
+module.exports = { RolesController, rolesController: new RolesController() };

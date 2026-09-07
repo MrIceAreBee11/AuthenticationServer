@@ -10,7 +10,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { sequelize, Permission } = require('../src/database');
+const { sequelize } = require('../src/database');
+const { permissionRepository } = require('../src/repositories/permission.repository');
 
 const OUTPUT_PATH = path.join(__dirname, '..', 'src', 'constants', 'permissions.js');
 
@@ -64,29 +65,26 @@ module.exports = { PERMISSIONS };
 };
 
 const run = async () => {
-  const permissions = await Permission.findAll({
-    attributes: ['name'],
-    order: [['name', 'ASC']],
-  });
+  const permissionNames = await permissionRepository.findAllNames();
 
-  if (permissions.length === 0) {
+  if (permissionNames.length === 0) {
     throw new Error(
       'Tabel permissions kosong. Jalankan "npm run db:migrate" terlebih dahulu.'
     );
   }
 
-  const content = buildFileContent(permissions.map((row) => row.toJSON()));
+  const content = buildFileContent(permissionNames.map((name) => ({ name })));
   const previous = fs.existsSync(OUTPUT_PATH)
     ? fs.readFileSync(OUTPUT_PATH, 'utf8')
     : null;
 
   if (previous === content) {
-    console.log(`Tidak ada perubahan — ${permissions.length} izin, berkas sudah sesuai.`);
+    console.log(`Tidak ada perubahan — ${permissionNames.length} izin, berkas sudah sesuai.`);
     return;
   }
 
   fs.writeFileSync(OUTPUT_PATH, content);
-  console.log(`src/constants/permissions.js diperbarui — ${permissions.length} izin.`);
+  console.log(`src/constants/permissions.js diperbarui — ${permissionNames.length} izin.`);
 };
 
 run()

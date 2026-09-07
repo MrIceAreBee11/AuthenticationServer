@@ -1,61 +1,73 @@
 const crypto = require('node:crypto');
 
-const { User } = require('../../database');
-const { redisClient } = require('../../redis');
 const AppError = require('../../utils/AppError');
+const { userRepository } = require('../../repositories/user.repository');
+const {
+  passwordResetTokenRepository,
+} = require('../../repositories/passwordResetToken.repository');
 
-const RESET_KEY_PREFIX = 'password-reset:';
 const RESET_TTL_SECONDS = 15 * 60;
 const TOKEN_BYTES = 32;
 const MIN_PASSWORD_LENGTH = 12;
 
-const hashToken = (token) =>
-  crypto.createHash('sha256').update(token).digest('hex');
-
-const requestPasswordReset = async ({ email }) => {
-  const normalizedEmail = String(email).trim().toLowerCase();
-
-  const user = await User.findOne({ where: { email: normalizedEmail } });
-
-  if (!user || !user.isActive) {
-    return null;
+class PasswordService {
+  constructor({ users = userRepository, resetTokens = passwordResetTokenRepository } = {}) {
+    this.users = users;
+    this.resetTokens = resetTokens;
   }
 
-  const resetToken = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  /**
+   * Mengembalikan null bila email tidak terdaftar atau akunnya nonaktif —
+   * bukan melempar error. Dengan begitu controller dapat membalas pesan yang
+   * sama untuk semua kemungkinan, sehingga endpoint ini tidak bisa dipakai
+   * memeriksa apakah sebuah email terdaftar.
+   */
+  async requestReset({ email }) {
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-  await redisClient.set(`${RESET_KEY_PREFIX}${hashToken(resetToken)}`, user.id, {
-    EX: RESET_TTL_SECONDS,
-  });
+    const user = await this.users.findByEmail(normalizedEmail);
 
-  return { user, resetToken };
-};
+    if (!user || !user.isActive) {
+      return null;
+    }
 
-const resetPassword = async ({ token, newPassword }) => {
-  if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
-    throw new AppError(
-      `Password baru minimal ${MIN_PASSWORD_LENGTH} karakter`,
-      400
-    );
+    const resetToken = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+
+    await this.resetTokens.save(resetToken, user.id, RESET_TTL_SECONDS);
+
+    return { user, resetToken };
   }
 
-  const cacheKey = `${RESET_KEY_PREFIX}${hashToken(token)}`;
-  const userId = await redisClient.get(cacheKey);
+  async resetPassword({ token, newPassword }) {
+    // Divalidasi sebelum token diperiksa, supaya permintaan yang pasti gagal
+    // tidak membuang satu operasi baca ke Redis.
+    if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new AppError(`Password baru minimal ${MIN_PASSWORD_LENGTH} karakter`, 400);
+    }
 
-  if (!userId) {
-    throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
+    const userId = await this.resetTokens.findUserId(token);
+
+    // Pesan sengaja sama untuk token tidak ada, kedaluwarsa, maupun akun
+    // nonaktif — ketiganya tidak boleh dapat dibedakan oleh pemanggil.
+    if (!userId) {
+      throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
+    }
+
+    const user = await this.users.findById(userId, { includePassword: true });
+
+    if (!user || !user.isActive) {
+      await this.resetTokens.remove(token);
+      throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
+    }
+
+    // Urutannya disengaja: password diubah dulu, token dihapus kemudian.
+    // Kalau dibalik dan pembaruan gagal, token sudah lenyap sementara password
+    // belum berubah — pengguna terjebak dengan tautan yang sudah mati.
+    await this.users.update(user, { passwordHash: newPassword });
+    await this.resetTokens.remove(token);
+
+    return user;
   }
+}
 
-  const user = await User.unscoped().findByPk(userId);
-
-  if (!user || !user.isActive) {
-    await redisClient.del(cacheKey);
-    throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
-  }
-
-  await user.update({ passwordHash: newPassword });
-  await redisClient.del(cacheKey);
-
-  return user;
-};
-
-module.exports = { requestPasswordReset, resetPassword };
+module.exports = { PasswordService, passwordService: new PasswordService() };

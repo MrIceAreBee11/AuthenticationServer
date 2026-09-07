@@ -122,19 +122,21 @@ Seluruhnya berawalan `/api/v1`.
 ```
 src/
 ├── config/        konfigurasi dan validasi environment
-├── constants/     data tetap tanpa efek samping
+├── constants/     data tetap tanpa efek samping (permissions.js dibuat otomatis)
 ├── utils/         fungsi murni, tidak menyentuh I/O
 ├── database/      koneksi, model, migration, seeder
 ├── redis/         koneksi Redis
 ├── queue/         koneksi RabbitMQ dan penerbitan pesan
 ├── storage/       koneksi MinIO dan operasi berkas
-├── services/      logika lintas fitur yang menyentuh penyimpanan
+├── repositories/  SATU-SATUNYA tempat penyusunan query
+├── services/      logika bisnis, memanggil repository
 ├── middlewares/   pemeriksaan sebelum controller
-├── modules/       fitur, satu folder per fitur
+├── modules/       fitur, satu folder per fitur (controller, service, routes)
 ├── routes/        pengumpul seluruh route
 └── workers/       proses terpisah yang berjalan sendiri
 
 public/            antarmuka console (HTML, CSS, JS tanpa build)
+scripts/           perkakas pengembangan (generator konstanta izin)
 tests/             pengujian end-to-end
 docs/              laporan teknis dan bahan presentasi
 ```
@@ -174,8 +176,27 @@ Dua pengaman berjalan tanpa perlu diingat:
 
 1. Data tetap tanpa koneksi apa pun? → `constants/`
 2. Fungsi murni tanpa I/O? → `utils/`
-3. Dipakai lintas fitur dan menyentuh penyimpanan? → `services/` atau `middlewares/`
-4. Hanya dipakai satu fitur? → `modules/<fitur>/`
+3. Menyusun query ke database, Redis, atau storage? → `repositories/`
+4. Logika yang dipakai lintas fitur? → `services/` atau `middlewares/`
+5. Hanya dipakai satu fitur? → `modules/<fitur>/`
+
+### Aturan lapisan
+
+```
+routes -> controller -> service -> repository -> model/DB
+```
+
+Sequelize dan klien Redis **hanya boleh disebut di dalam `repositories/`**.
+Service memanggil repository, tidak pernah menyentuh model secara langsung.
+
+Dua pengecualian yang disengaja: `runInTransaction` dari `database/` boleh
+dipakai service untuk membungkus beberapa operasi tulis, dan `server.js`
+mengelola siklus hidup koneksi karena ia adalah titik penyusunan aplikasi.
+
+Repository, service, dan controller ditulis sebagai **class** dengan
+dependensi disuntikkan lewat constructor, sehingga dapat digantikan objek
+palsu saat pengujian unit. Middleware, `utils/`, dan berkas route tetap berupa
+fungsi — Express mengharuskannya, dan class tanpa state hanya menambah upacara.
 
 ---
 

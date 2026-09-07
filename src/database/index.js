@@ -23,4 +23,13 @@ Object.values(models).forEach((model) => {
   }
 });
 
-module.exports = { sequelize, Sequelize, ...models };
+/**
+ * Menjalankan beberapa operasi tulis dalam satu transaksi.
+ *
+ * Disediakan di sini supaya service dapat memakai transaksi tanpa perlu
+ * mengimpor objek sequelize secara langsung — sesuai aturan bahwa penyusunan
+ * query hanya terjadi di lapisan repository.
+ */
+const runInTransaction = (callback) => sequelize.transaction(callback);
+
+module.exports = { sequelize, Sequelize, runInTransaction, ...models };

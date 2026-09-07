@@ -1,5 +1,5 @@
 const AppError = require('../utils/AppError');
-const { getUserPermissions } = require('../services/permission.service');
+const { permissionService } = require('../services/permission.service');
 
 /**
  * Setiap nama izin yang diminta oleh route dicatat di sini saat route
@@ -35,7 +35,7 @@ const authorize = (...requiredPermissions) => {
       throw new Error('authorize() harus dipasang setelah authenticate()');
     }
 
-    const ownedPermissions = await getUserPermissions(req.user.id);
+    const ownedPermissions = await permissionService.getUserPermissions(req.user.id);
 
     const missingPermissions = requiredPermissions.filter(
       (permission) => !ownedPermissions.includes(permission)

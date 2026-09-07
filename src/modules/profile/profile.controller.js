@@ -1,30 +1,40 @@
-const profileService = require('./profile.service');
 const { successResponse } = require('../../utils/response');
+const { profileService } = require('./profile.service');
 
-const getProfile = async (req, res) => {
-  const profile = await profileService.getProfile(req.user.id);
+class ProfileController {
+  constructor({ profiles = profileService } = {}) {
+    this.profiles = profiles;
+  }
 
-  return successResponse(res, 200, 'Profil berhasil diambil', { profile });
-};
+  // Seluruh method memakai req.user.id, tidak pernah menerima ID dari klien.
+  // Endpoint yang bermakna "milik saya sendiri" harus mengambil identitas dari
+  // token; kalau ID datang dari input, siapa pun bisa mengubah profil orang lain.
 
-const updateProfile = async (req, res) => {
-  const { fullName, phone } = req.body ?? {};
+  get = async (req, res) => {
+    const profile = await this.profiles.getProfile(req.user.id);
 
-  const profile = await profileService.updateProfile(req.user.id, { fullName, phone });
+    return successResponse(res, 200, 'Profil berhasil diambil', { profile });
+  };
 
-  return successResponse(res, 200, 'Profil berhasil diperbarui', { profile });
-};
+  update = async (req, res) => {
+    const { fullName, phone } = req.body ?? {};
 
-const updateAvatar = async (req, res) => {
-  const profile = await profileService.updateAvatar(req.user.id, req.file);
+    const profile = await this.profiles.updateProfile(req.user.id, { fullName, phone });
 
-  return successResponse(res, 200, 'Avatar berhasil diunggah', { profile });
-};
+    return successResponse(res, 200, 'Profil berhasil diperbarui', { profile });
+  };
 
-const removeAvatar = async (req, res) => {
-  const profile = await profileService.removeAvatar(req.user.id);
+  uploadAvatar = async (req, res) => {
+    const profile = await this.profiles.updateAvatar(req.user.id, req.file);
 
-  return successResponse(res, 200, 'Avatar berhasil dihapus', { profile });
-};
+    return successResponse(res, 200, 'Avatar berhasil diunggah', { profile });
+  };
 
-module.exports = { getProfile, updateProfile, updateAvatar, removeAvatar };
+  removeAvatar = async (req, res) => {
+    const profile = await this.profiles.removeAvatar(req.user.id);
+
+    return successResponse(res, 200, 'Avatar berhasil dihapus', { profile });
+  };
+}
+
+module.exports = { ProfileController, profileController: new ProfileController() };

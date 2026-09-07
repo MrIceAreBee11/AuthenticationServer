@@ -529,6 +529,78 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   ]),
   br(),
 
+  h2('12.2 Lapisan Repository dan Perpindahan ke Class'),
+
+  h3('Masalah yang ditemukan'),
+  p('Masukan berikutnya menyangkut dua hal yang sebenarnya satu persoalan yang sama: penyusunan query tersebar di mana-mana, dan modul-modul ditulis sebagai kumpulan fungsi lepas.'),
+  p('Sebelum perbaikan, service memanggil model Sequelize secara langsung. Service profil memanggil model User, service role memanggil model Role beserta model penghubungnya, dan middleware autentikasi memanggil model User sekaligus klien Redis. Akibatnya, pengetahuan tentang cara data disimpan bocor ke seluruh lapisan.'),
+  p('Dua contoh nyata dari kebocoran itu. Awalan kunci token yang dicabut, token:denylist:, ditulis di dua berkas yang berbeda — di service autentikasi ketika mencabut, dan di middleware autentikasi ketika memeriksa. Kalau salah satu diubah, logout berhenti bekerja tanpa satu pun error: token dicabut dengan kunci A, diperiksa dengan kunci B, dan hasil pemeriksaannya selalu "tidak dicabut". Hal yang sama terjadi pada awalan password-reset: beserta cara token itu di-hash.'),
+  quote('Pola kegagalannya sama seperti pada katalog izin: dua tempat yang harus cocok, dan yang tidak cocok tidak menghasilkan error apa pun.'),
+  p('Persoalan kedua, karena service berupa objek berisi fungsi yang mengambil dependensinya lewat require di baris paling atas berkas, dependensi itu tidak dapat digantikan dari luar. Untuk menguji satu fungsi service, seluruh basis data, Redis, dan RabbitMQ harus benar-benar hidup. Itulah alasan sampai bab sebelumnya seluruh pengujian yang ada berupa end-to-end.'),
+
+  h3('Perbaikan'),
+  p('Dibuat satu folder baru, src/repositories/, dan satu aturan tunggal: Sequelize dan klien Redis hanya boleh disebut di dalam folder itu.'),
+  ...code([
+    'routes  ->  controller  ->  service  ->  repository  ->  model / DB',
+    '',
+    '            "terima HTTP"   "aturan"     "cara simpan"',
+  ]),
+  caption('Gambar 12.2 — Arah ketergantungan antar lapisan'),
+  table(
+    ['Repository', 'Tanggung jawab'],
+    [
+      ['user.repository.js', 'Seluruh pencarian, penyimpanan, dan penetapan role pengguna'],
+      ['role.repository.js', 'Role beserta izinnya, termasuk penghitungan jumlah pengguna per role'],
+      ['permission.repository.js', 'Katalog izin dan pembacaan daftar namanya'],
+      ['tokenDenylist.repository.js', 'Satu-satunya pemilik awalan kunci token:denylist:'],
+      ['passwordResetToken.repository.js', 'Satu-satunya pemilik awalan password-reset: beserta cara hash-nya'],
+      ['health.repository.js', 'Pemeriksaan hidup-matinya basis data dan cache'],
+    ],
+    [3200, 5826]
+  ),
+  p('Kedua kebocoran tadi otomatis tertutup. Awalan kunci sekarang hanya ada di satu berkas, dan tidak ada satu pun pemanggil yang tahu bentuk kuncinya. Cara hash token reset pun demikian: service cukup menyerahkan token apa adanya, dan repository yang memutuskan bagaimana ia disimpan.'),
+
+  h3('Dua pengecualian yang disengaja'),
+  p('Ada dua tempat di luar folder repository yang masih menyebut Sequelize, dan keduanya bukan penyusunan query.'),
+  num('Pembungkus transaksi di src/database/index.js. Service role dan service pengguna memerlukan beberapa operasi tulis yang harus berhasil bersama-sama atau gagal bersama-sama. Pembungkus ini menyediakannya tanpa memaksa service mengimpor Sequelize.'),
+  num('Berkas server.js, yang membuka dan menutup koneksi. Ia adalah titik penyusunan aplikasi, jadi memang tugasnya mengurus siklus hidup koneksi — bukan menyusun query.'),
+
+  h3('Kenapa repository mengembalikan objek model, bukan objek biasa'),
+  p('Keputusan ini sengaja diambil dan dicatat di dalam berkasnya. Objek model membawa perilaku yang benar-benar dipakai: metode pembanding password, penyaring kolom rahasia saat objek diubah menjadi JSON, dan hook yang meng-hash password sebelum disimpan.'),
+  p('Kalau repository mengubahnya menjadi objek biasa, tiga hal itu hilang. Yang paling berbahaya adalah hook: pembaruan yang dilakukan tanpa objek model akan melewati hook, dan password tersimpan dalam bentuk teks asli tanpa satu pun peringatan.'),
+
+  h3('Kenapa class, dan kenapa tidak semuanya'),
+  p('Repository, service, dan controller ditulis sebagai class dengan dependensinya disuntikkan lewat constructor, disertai nilai bawaan agar pemakaian sehari-hari tidak berubah sama sekali.'),
+  ...code([
+    'class AuthService {',
+    '  constructor({ users = userRepository, denylist = tokenDenylistRepository } = {}) {',
+    '    this.users = users;',
+    '    this.denylist = denylist;',
+    '  }',
+    '}',
+    '',
+    "// dipakai biasa   : authService.login(...)            <- dependensi asli",
+    "// dipakai di test : new AuthService({ users: palsu }) <- dependensi palsu",
+  ]),
+  caption('Gambar 12.3 — Penyuntikan dependensi lewat constructor'),
+  p('Inilah yang membuka jalan bagi pengujian unit: objek palsu dapat dimasukkan tanpa menyalakan satu pun layanan.'),
+  p('Middleware, berkas di utils/, dan berkas route tetap berupa fungsi. Express memang mengharuskan middleware berupa fungsi, berkas utils tidak menyimpan keadaan apa pun sehingga class hanya menambah upacara, dan berkas route hanya menyambungkan alamat ke handler.'),
+  quote('Class dipakai di tempat yang punya dependensi untuk disuntikkan. Di tempat yang tidak punya, ia hanya menambah baris tanpa menambah kemampuan.'),
+
+  h3('Catatan tentang controller'),
+  p('Metode controller ditulis sebagai properti berisi fungsi panah, bukan metode biasa. Alasannya teknis: handler diserahkan ke router sebagai nilai, terlepas dari objek pemiliknya. Metode biasa akan kehilangan acuan this begitu dilepas seperti itu, dan setiap pemanggilan berujung pada error. Fungsi panah mengikat this pada saat objeknya dibuat, sehingga tetap utuh.'),
+
+  h3('Hasil pengujian'),
+  p('Karena restrukturisasi ini menyentuh hampir seluruh berkas di src/, pembuktian yang dipakai adalah bahwa perilaku sistem tidak berubah sedikit pun.'),
+  ...code([
+    'Aplikasi dimuat                : berhasil, tanpa error require',
+    'Pengujian end-to-end           : 15 lulus, 0 gagal',
+    'Container dibangun ulang       : sehat, katalog izin terverifikasi 11/11',
+    'Sapuan seluruh endpoint        : 25 dari 25 endpoint, 0 gagal',
+    'Sequelize di luar repositories : hanya pembungkus transaksi dan server.js',
+  ]),
+  br(),
+
   h1('Lampiran A — Daftar Endpoint'),
   table(
     ['Metode dan Alamat', 'Fungsi', 'Izin yang Dibutuhkan'],

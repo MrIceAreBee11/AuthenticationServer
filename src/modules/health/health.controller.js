@@ -1,40 +1,47 @@
-const { successResponse } = require('../../utils/response');
-const { sequelize } = require('../../database');
-const { redisClient } = require('../../redis');
-const { errorResponse } = require('../../utils/response');
+const { successResponse, errorResponse } = require('../../utils/response');
+const { healthRepository } = require('../../repositories/health.repository');
 
-const checkHealth = (req, res) => {
-  return successResponse(res, 200, 'Service berjalan normal', {
-    uptime: Math.floor(process.uptime()),
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-  });
-};
-
-const checkReadiness = async (req, res) => {
-  const checks = { database: 'down', redis: 'down' };
-
-  try {
-    await sequelize.authenticate();
-    checks.database = 'up';
-  } catch (error) {
-    console.error('[READINESS] database:', error.message);
+class HealthController {
+  constructor({ health = healthRepository } = {}) {
+    this.health = health;
   }
 
-  try {
-    await redisClient.ping();
-    checks.redis = 'up';
-  } catch (error) {
-    console.error('[READINESS] redis:', error.message);
-  }
+  /**
+   * Liveness — hanya menjawab bahwa prosesnya hidup, tanpa menyentuh
+   * dependensi apa pun. Dipakai oleh healthcheck Docker, yang memanggilnya
+   * sesering mungkin, dan harus tetap menjawab meski seluruh dependensi mati.
+   */
+  liveness = (req, res) =>
+    successResponse(res, 200, 'Service berjalan normal', {
+      uptime: Math.floor(process.uptime()),
+      environment: process.env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+    });
 
-  const isReady = Object.values(checks).every((status) => status === 'up');
+  /**
+   * Readiness — memeriksa dependensi yang benar-benar dibutuhkan.
+   *
+   * Kedua pemeriksaan dijalankan sampai selesai, tidak berhenti di kegagalan
+   * pertama. Endpoint diagnostik harus melaporkan seluruh keadaan sekaligus;
+   * kalau berhenti di yang pertama, diagnosis menjadi berlapis.
+   */
+  readiness = async (req, res) => {
+    const [databaseUp, cacheUp] = await Promise.all([
+      this.health.pingDatabase(),
+      this.health.pingCache(),
+    ]);
 
-  if (!isReady) {
-    return errorResponse(res, 503, 'Service belum siap', checks);
-  }
+    const checks = {
+      database: databaseUp ? 'up' : 'down',
+      redis: cacheUp ? 'up' : 'down',
+    };
 
-  return successResponse(res, 200, 'Service siap menerima request', checks);
-};
+    if (!databaseUp || !cacheUp) {
+      return errorResponse(res, 503, 'Service belum siap', checks);
+    }
 
-module.exports = { checkHealth, checkReadiness };
+    return successResponse(res, 200, 'Service siap menerima request', checks);
+  };
+}
+
+module.exports = { HealthController, healthController: new HealthController() };

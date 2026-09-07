@@ -4,7 +4,7 @@ const { sequelize } = require('./database');
 const { connectRedis, redisClient } = require('./redis');
 const { closeQueue } = require('./queue');
 const authorize = require('./middlewares/authorize');
-const { verifyPermissionCatalog } = require('./services/permission.service');
+const { permissionService } = require('./services/permission.service');
 
 const SHUTDOWN_TIMEOUT_MS = 10000;
 
@@ -21,7 +21,7 @@ const startServer = async () => {
 
     // Route sudah termuat saat ./app di-require, jadi daftar izin yang dipakai
     // sudah lengkap di titik ini.
-    const catalog = await verifyPermissionCatalog(authorize.getRequiredPermissions());
+    const catalog = await permissionService.verifyCatalog(authorize.getRequiredPermissions());
     console.log(
       `Katalog izin terverifikasi (${catalog.required} dipakai route, ${catalog.available} tersedia di database)`
     );

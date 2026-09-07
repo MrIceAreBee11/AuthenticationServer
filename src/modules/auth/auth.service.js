@@ -1,70 +1,75 @@
 const bcrypt = require('bcryptjs');
 
-const { User } = require('../../database');
 const AppError = require('../../utils/AppError');
 const { signAccessToken } = require('../../utils/token');
-const { redisClient } = require('../../redis');
+const { userRepository } = require('../../repositories/user.repository');
+const {
+  tokenDenylistRepository,
+} = require('../../repositories/tokenDenylist.repository');
 
-const DENYLIST_PREFIX = 'token:denylist:';
-
+/**
+ * Hash asli dari string acak yang tidak pernah menjadi password siapa pun.
+ * Dipakai agar percobaan login dengan email tak terdaftar memakan waktu yang
+ * sama dengan email terdaftar. Tanpa ini, selisih waktu responsnya sendiri
+ * sudah membocorkan email mana yang ada di sistem.
+ */
 const DUMMY_PASSWORD_HASH =
   '$2b$12$y8mnV4olFFifO8MOrq4AjOFM/mRzYnSAHz.CDpc9FhAoOx4cfCpAK';
 
-const login = async ({ email, password }) => {
-  const normalizedEmail = String(email).trim().toLowerCase();
-
-  const user = await User.unscoped().findOne({
-    where: { email: normalizedEmail },
-  });
-
-  const isPasswordValid = user
-    ? await user.comparePassword(password)
-    : await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-
-  if (!user || !isPasswordValid) {
-    throw new AppError('Email atau password salah', 401);
+class AuthService {
+  constructor({ users = userRepository, denylist = tokenDenylistRepository } = {}) {
+    this.users = users;
+    this.denylist = denylist;
   }
 
-  if (!user.isActive) {
-    throw new AppError('Akun Anda tidak aktif. Hubungi administrator.', 403);
+  async login({ email, password }) {
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    const user = await this.users.findByEmail(normalizedEmail, {
+      includePassword: true,
+    });
+
+    const isPasswordValid = user
+      ? await user.comparePassword(password)
+      : await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+
+    // Pesan sengaja seragam untuk email tak terdaftar maupun password salah,
+    // agar tidak dapat dipakai memetakan daftar pengguna.
+    if (!user || !isPasswordValid) {
+      throw new AppError('Email atau password salah', 401);
+    }
+
+    // Status aktif diperiksa SETELAH password terverifikasi. Kalau dibalik,
+    // pesannya mengonfirmasi bahwa email tersebut terdaftar.
+    if (!user.isActive) {
+      throw new AppError('Akun Anda tidak aktif. Hubungi administrator.', 403);
+    }
+
+    await this.users.update(user, { lastLoginAt: new Date() });
+
+    const { token } = signAccessToken(user.id);
+
+    return { token, user: user.toJSON() };
   }
 
-  await user.update({ lastLoginAt: new Date() });
+  async getProfile(userId) {
+    const user = await this.users.findById(userId, {
+      includeRoles: true,
+      detailedRoles: true,
+    });
 
-  const { token } = signAccessToken(user.id);
+    if (!user) {
+      throw new AppError('User tidak ditemukan', 404);
+    }
 
-  return { token, user: user.toJSON() };
-};
-
-const getProfile = async (userId) => {
-  const user = await User.findByPk(userId, {
-    include: [
-      {
-        association: 'roles',
-        attributes: ['id', 'name', 'description'],
-        through: { attributes: [] },
-      },
-    ],
-  });
-
-  if (!user) {
-    throw new AppError('User tidak ditemukan', 404);
+    return user;
   }
 
-  return user;
-};
+  async logout({ tokenId, expiresAt }) {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
 
-const logout = async ({ tokenId, expiresAt }) => {
-  const nowInSeconds = Math.floor(Date.now() / 1000);
-  const remainingSeconds = expiresAt - nowInSeconds;
-
-  if (remainingSeconds <= 0) {
-    return;
+    await this.denylist.revoke(tokenId, expiresAt - nowInSeconds);
   }
+}
 
-  await redisClient.set(`${DENYLIST_PREFIX}${tokenId}`, '1', {
-    EX: remainingSeconds,
-  });
-};
-
-module.exports = { login, getProfile, logout };
+module.exports = { AuthService, authService: new AuthService() };

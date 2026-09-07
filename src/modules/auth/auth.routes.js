@@ -1,19 +1,26 @@
 const { Router } = require('express');
 
-const { login, me, logout, permissions, forgotPassword, resetPassword } = require('./auth.controller');
+const { authController } = require('./auth.controller');
 const authenticate = require('../../middlewares/authenticate');
-const authorize = require('../../middlewares/authorize');
-const { PERMISSIONS } = require('../../constants/permissions');
-const { loginRateLimiter, passwordResetRateLimiter } = require('../../middlewares/rateLimiter');
+const {
+  loginRateLimiter,
+  passwordResetRateLimiter,
+} = require('../../middlewares/rateLimiter');
 
 const router = Router();
 
-router.post('/login', loginRateLimiter, login);
-router.get('/me', authenticate, me);
-router.post('/logout', authenticate, logout);
+router.post('/login', loginRateLimiter, authController.login);
+router.get('/me', authenticate, authController.me);
+router.post('/logout', authenticate, authController.logout);
+
 // Ini daftar izin MILIK SENDIRI, jadi cukup butuh token yang sah.
 // Izin permissions.read menjaga katalog seluruh permission di GET /permissions.
-router.get('/permissions', authenticate, permissions);
-router.post('/forgot-password', passwordResetRateLimiter, forgotPassword);
-router.post('/reset-password',resetPassword);
+router.get('/permissions', authenticate, authController.permissionsOfCurrentUser);
+
+router.post('/forgot-password', passwordResetRateLimiter, authController.forgotPassword);
+
+// Tanpa rate limiter: tidak ada yang bisa ditebak di sini. Menebak token 32
+// byte butuh 2^256 percobaan, dan tiap percobaan hanya satu operasi baca Redis.
+router.post('/reset-password', authController.resetPassword);
+
 module.exports = router;
