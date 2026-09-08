@@ -7,6 +7,7 @@
  * dijaga izin. Menyatukannya membuat perbedaan itu mudah tertukar.
  */
 const { successResponse } = require('../../utils/response');
+const { toUserDto, toUserListDto } = require('../../mappers/user.mapper');
 
 class UsersController {
   constructor({ users }) {
@@ -18,13 +19,21 @@ class UsersController {
 
     const { users, meta } = await this.users.list({ page, limit });
 
-    return successResponse(res, 200, 'Daftar user berhasil diambil', { users }, meta);
+    return successResponse(
+      res,
+      200,
+      'Daftar user berhasil diambil',
+      { users: toUserListDto(users) },
+      meta
+    );
   };
 
   getById = async (req, res) => {
     const user = await this.users.getById(req.params.id);
 
-    return successResponse(res, 200, 'Detail user berhasil diambil', { user });
+    return successResponse(res, 200, 'Detail user berhasil diambil', {
+      user: toUserDto(user),
+    });
   };
 
   create = async (req, res) => {
@@ -32,7 +41,7 @@ class UsersController {
 
     const user = await this.users.create({ email, password, fullName, phone, roleIds });
 
-    return successResponse(res, 201, 'User berhasil dibuat', { user });
+    return successResponse(res, 201, 'User berhasil dibuat', { user: toUserDto(user) });
   };
 
   // req.user.id diteruskan sebagai pelaku, agar service dapat menegakkan
@@ -47,7 +56,9 @@ class UsersController {
       isActive,
     });
 
-    return successResponse(res, 200, 'User berhasil diperbarui', { user });
+    return successResponse(res, 200, 'User berhasil diperbarui', {
+      user: toUserDto(user),
+    });
   };
 
   setRoles = async (req, res) => {
@@ -55,7 +66,9 @@ class UsersController {
 
     const user = await this.users.setRoles(req.user.id, req.params.id, roleIds);
 
-    return successResponse(res, 200, 'Role user berhasil diperbarui', { user });
+    return successResponse(res, 200, 'Role user berhasil diperbarui', {
+      user: toUserDto(user),
+    });
   };
 
   remove = async (req, res) => {

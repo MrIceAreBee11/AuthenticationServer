@@ -6,6 +6,11 @@
  * (/permissions) supaya sumber dayanya jelas berbeda.
  */
 const { successResponse } = require('../../utils/response');
+const {
+  toRoleDto,
+  toRoleListDto,
+  toPermissionCatalogDto,
+} = require('../../mappers/role.mapper');
 
 class RolesController {
   constructor({ roles }) {
@@ -15,13 +20,17 @@ class RolesController {
   list = async (req, res) => {
     const roles = await this.roles.list();
 
-    return successResponse(res, 200, 'Daftar role berhasil diambil', { roles });
+    return successResponse(res, 200, 'Daftar role berhasil diambil', {
+      roles: toRoleListDto(roles),
+    });
   };
 
   getById = async (req, res) => {
     const role = await this.roles.getById(req.params.id);
 
-    return successResponse(res, 200, 'Detail role berhasil diambil', { role });
+    return successResponse(res, 200, 'Detail role berhasil diambil', {
+      role: toRoleDto(role),
+    });
   };
 
   listPermissions = async (req, res) => {
@@ -38,7 +47,7 @@ class RolesController {
 
     const role = await this.roles.create({ name, description, permissionIds });
 
-    return successResponse(res, 201, 'Role berhasil dibuat', { role });
+    return successResponse(res, 201, 'Role berhasil dibuat', { role: toRoleDto(role) });
   };
 
   update = async (req, res) => {
@@ -46,7 +55,9 @@ class RolesController {
 
     const role = await this.roles.update(req.params.id, { name, description });
 
-    return successResponse(res, 200, 'Role berhasil diperbarui', { role });
+    return successResponse(res, 200, 'Role berhasil diperbarui', {
+      role: toRoleDto(role),
+    });
   };
 
   setPermissions = async (req, res) => {
@@ -54,7 +65,9 @@ class RolesController {
 
     const role = await this.roles.setPermissions(req.params.id, permissionIds);
 
-    return successResponse(res, 200, 'Permission role berhasil diperbarui', { role });
+    return successResponse(res, 200, 'Permission role berhasil diperbarui', {
+      role: toRoleDto(role),
+    });
   };
 
   remove = async (req, res) => {

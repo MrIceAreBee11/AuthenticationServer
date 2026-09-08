@@ -12,6 +12,7 @@ const { BadRequestError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
 const { successResponse } = require('../../utils/response');
 const { QUEUES } = require('../../constants/cacheKeys');
+const { toUserDto } = require('../../mappers/user.mapper');
 
 /**
  * Method ditulis sebagai class field bergaya arrow agar `this` tetap terikat
@@ -37,9 +38,13 @@ class AuthController {
       );
     }
 
-    const result = await this.auth.login({ email, password });
+    const { token, refreshToken, user } = await this.auth.login({ email, password });
 
-    return successResponse(res, 200, 'Login berhasil', result);
+    return successResponse(res, 200, 'Login berhasil', {
+      token,
+      refreshToken,
+      user: toUserDto(user),
+    });
   };
 
   /**
@@ -51,15 +56,21 @@ class AuthController {
   refresh = async (req, res) => {
     const { refreshToken } = req.body ?? {};
 
-    const result = await this.auth.refresh({ refreshToken });
+    const rotated = await this.auth.refresh({ refreshToken });
 
-    return successResponse(res, 200, 'Token berhasil diperbarui', result);
+    return successResponse(res, 200, 'Token berhasil diperbarui', {
+      token: rotated.token,
+      refreshToken: rotated.refreshToken,
+      user: toUserDto(rotated.user),
+    });
   };
 
   me = async (req, res) => {
     const user = await this.auth.getProfile(req.user.id);
 
-    return successResponse(res, 200, 'Data profil berhasil diambil', { user });
+    return successResponse(res, 200, 'Data profil berhasil diambil', {
+      user: toUserDto(user),
+    });
   };
 
   logout = async (req, res) => {

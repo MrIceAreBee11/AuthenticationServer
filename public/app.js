@@ -501,7 +501,6 @@ async function renderProfile() {
     ['Email', profile.email],
     ['ID Pengguna', profile.id],
     ['Role', profile.roles.map((role) => role.name).join(', ') || '—'],
-    ['Kunci Avatar', profile.avatarKey ?? '— belum ada —'],
     ['Dibuat', fmtDate(profile.createdAt)],
     ['Password Diubah', fmtDate(profile.passwordChangedAt)],
   ].forEach(([label, value]) => {

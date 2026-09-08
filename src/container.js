@@ -214,15 +214,10 @@ class Container {
     await this.database.connect();
     await this.cache.connect();
 
-    // Antrean disambungkan di sini, bukan dibiarkan tersambung sendiri saat
-    // permintaan pertama memakainya. Handler 'error' dan 'close'-nya didaftarkan
-    // di dalam connect(), jadi kalau connect() pertama kali dipanggil dari
-    // dalam sebuah permintaan, kedua handler itu mewarisi requestId permintaan
-    // tersebut SELAMANYA — dan setiap log koneksi antrean setelahnya, termasuk
-    // saat shutdown, salah tertaut ke permintaan yang sudah lama selesai.
-    //
-    // Kegagalannya tidak menghentikan start: antrean bukan dependency wajib,
-    // hanya pengiriman email yang bergantung padanya.
+    // Sambungkan antrean di awal saat aplikasi mulai berjalan.
+    // Kalau ditunda sampai ada request masuk, catatan error antrean bakal 
+    // ketempelan tanda pengenal request tersebut dan bikin isi log keliru/membingungkan.
+    // Jika gagal, aplikasi tetap jalan karena antrean cuma dipakai untuk kirim email di latar belakang.
     await this.queue
       .connect()
       .catch((error) => this.logger.exception('antrean belum tersambung saat start', error));

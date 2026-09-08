@@ -8,6 +8,7 @@
  * handler — kegagalan diteruskan ke error handler terpusat.
  */
 const { successResponse } = require('../../utils/response');
+const { toProfileDto } = require('../../mappers/user.mapper');
 
 class ProfileController {
   constructor({ profiles }) {
@@ -21,7 +22,9 @@ class ProfileController {
   get = async (req, res) => {
     const profile = await this.profiles.getProfile(req.user.id);
 
-    return successResponse(res, 200, 'Profil berhasil diambil', { profile });
+    return successResponse(res, 200, 'Profil berhasil diambil', {
+      profile: toProfileDto(profile),
+    });
   };
 
   update = async (req, res) => {
@@ -29,19 +32,25 @@ class ProfileController {
 
     const profile = await this.profiles.updateProfile(req.user.id, { fullName, phone });
 
-    return successResponse(res, 200, 'Profil berhasil diperbarui', { profile });
+    return successResponse(res, 200, 'Profil berhasil diperbarui', {
+      profile: toProfileDto(profile),
+    });
   };
 
   uploadAvatar = async (req, res) => {
     const profile = await this.profiles.updateAvatar(req.user.id, req.file);
 
-    return successResponse(res, 200, 'Avatar berhasil diunggah', { profile });
+    return successResponse(res, 200, 'Avatar berhasil diunggah', {
+      profile: toProfileDto(profile),
+    });
   };
 
   removeAvatar = async (req, res) => {
     const profile = await this.profiles.removeAvatar(req.user.id);
 
-    return successResponse(res, 200, 'Avatar berhasil dihapus', { profile });
+    return successResponse(res, 200, 'Avatar berhasil dihapus', {
+      profile: toProfileDto(profile),
+    });
   };
 }
 
