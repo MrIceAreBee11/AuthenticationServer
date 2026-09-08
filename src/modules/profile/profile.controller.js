@@ -28,7 +28,7 @@ class ProfileController {
   };
 
   update = async (req, res) => {
-    const { fullName, phone } = req.body ?? {};
+    const { fullName, phone } = req.valid.body;
 
     const profile = await this.profiles.updateProfile(req.user.id, { fullName, phone });
 

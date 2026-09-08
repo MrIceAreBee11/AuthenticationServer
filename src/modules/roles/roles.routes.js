@@ -12,6 +12,13 @@
 const { Router } = require('express');
 
 const { PERMISSIONS } = require('../../constants/permissions');
+const { validate } = require('../../middlewares/validate');
+const {
+  roleIdParamSchema,
+  createRoleSchema,
+  updateRoleSchema,
+  setRolePermissionsSchema,
+} = require('./roles.schema');
 
 const buildRolesRoutes = ({ controllers, authenticate, authorize }) => {
   const router = Router();
@@ -19,12 +26,38 @@ const buildRolesRoutes = ({ controllers, authenticate, authorize }) => {
   const requireToken = authenticate.handle;
   const canUpdate = authorize.require(PERMISSIONS.ROLES_UPDATE);
 
-  router.get('/', requireToken, authorize.require(PERMISSIONS.ROLES_READ), roles.list);
-  router.post('/', requireToken, authorize.require(PERMISSIONS.ROLES_CREATE), roles.create);
-  router.get('/:id', requireToken, authorize.require(PERMISSIONS.ROLES_READ), roles.getById);
-  router.patch('/:id', requireToken, canUpdate, roles.update);
-  router.delete('/:id', requireToken, authorize.require(PERMISSIONS.ROLES_DELETE), roles.remove);
-  router.put('/:id/permissions', requireToken, canUpdate, roles.setPermissions);
+  const canRead = authorize.require(PERMISSIONS.ROLES_READ);
+  const withId = validate(roleIdParamSchema, 'params');
+
+  router.get('/', requireToken, canRead, roles.list);
+
+  router.post(
+    '/',
+    requireToken,
+    authorize.require(PERMISSIONS.ROLES_CREATE),
+    validate(createRoleSchema),
+    roles.create
+  );
+
+  router.get('/:id', requireToken, canRead, withId, roles.getById);
+  router.patch('/:id', requireToken, canUpdate, withId, validate(updateRoleSchema), roles.update);
+
+  router.delete(
+    '/:id',
+    requireToken,
+    authorize.require(PERMISSIONS.ROLES_DELETE),
+    withId,
+    roles.remove
+  );
+
+  router.put(
+    '/:id/permissions',
+    requireToken,
+    canUpdate,
+    withId,
+    validate(setRolePermissionsSchema),
+    roles.setPermissions
+  );
 
   return router;
 };

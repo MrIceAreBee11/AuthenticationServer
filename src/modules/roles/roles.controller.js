@@ -26,7 +26,7 @@ class RolesController {
   };
 
   getById = async (req, res) => {
-    const role = await this.roles.getById(req.params.id);
+    const role = await this.roles.getById(req.valid.params.id);
 
     return successResponse(res, 200, 'Detail role berhasil diambil', {
       role: toRoleDto(role),
@@ -43,7 +43,7 @@ class RolesController {
   };
 
   create = async (req, res) => {
-    const { name, description, permissionIds } = req.body ?? {};
+    const { name, description, permissionIds } = req.valid.body;
 
     const role = await this.roles.create({ name, description, permissionIds });
 
@@ -51,9 +51,9 @@ class RolesController {
   };
 
   update = async (req, res) => {
-    const { name, description } = req.body ?? {};
+    const { name, description } = req.valid.body;
 
-    const role = await this.roles.update(req.params.id, { name, description });
+    const role = await this.roles.update(req.valid.params.id, { name, description });
 
     return successResponse(res, 200, 'Role berhasil diperbarui', {
       role: toRoleDto(role),
@@ -61,9 +61,9 @@ class RolesController {
   };
 
   setPermissions = async (req, res) => {
-    const { permissionIds } = req.body ?? {};
+    const { permissionIds } = req.valid.body;
 
-    const role = await this.roles.setPermissions(req.params.id, permissionIds);
+    const role = await this.roles.setPermissions(req.valid.params.id, permissionIds);
 
     return successResponse(res, 200, 'Permission role berhasil diperbarui', {
       role: toRoleDto(role),
@@ -71,7 +71,7 @@ class RolesController {
   };
 
   remove = async (req, res) => {
-    await this.roles.remove(req.params.id);
+    await this.roles.remove(req.valid.params.id);
 
     return successResponse(res, 200, 'Role berhasil dihapus');
   };

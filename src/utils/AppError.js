@@ -22,12 +22,18 @@
 const { DEFAULT_CODE_BY_STATUS, ERROR_CODES } = require('../constants/errorCodes');
 
 class AppError extends Error {
-  constructor(message, statusCode, code = null) {
+  /**
+   * `details` untuk keterangan tambahan yang terstruktur — misalnya daftar
+   * field yang gagal divalidasi. Sengaja terpisah dari `message`: pesannya
+   * satu kalimat untuk ditampilkan, details-nya data untuk diproses.
+   */
+  constructor(message, statusCode, code = null, details = null) {
     super(message);
 
     this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.code = code ?? DEFAULT_CODE_BY_STATUS[statusCode] ?? ERROR_CODES.INTERNAL_ERROR;
+    this.details = details;
 
     Error.captureStackTrace(this, this.constructor);
   }
@@ -35,35 +41,35 @@ class AppError extends Error {
 
 /** 400 — permintaannya sendiri yang salah bentuk atau tidak lengkap. */
 class BadRequestError extends AppError {
-  constructor(message, code) {
-    super(message, 400, code);
+  constructor(message, code, details) {
+    super(message, 400, code, details);
   }
 }
 
 /** 401 — identitasnya belum terbukti. Klien boleh mencoba lagi setelah login. */
 class UnauthorizedError extends AppError {
-  constructor(message, code) {
-    super(message, 401, code);
+  constructor(message, code, details) {
+    super(message, 401, code, details);
   }
 }
 
 /** 403 — identitasnya terbukti, tetapi haknya tidak cukup. Mengulangi tidak menolong. */
 class ForbiddenError extends AppError {
-  constructor(message, code) {
-    super(message, 403, code);
+  constructor(message, code, details) {
+    super(message, 403, code, details);
   }
 }
 
 class NotFoundError extends AppError {
-  constructor(message, code) {
-    super(message, 404, code);
+  constructor(message, code, details) {
+    super(message, 404, code, details);
   }
 }
 
 /** 409 — permintaannya sah, tetapi bertabrakan dengan keadaan yang ada. */
 class ConflictError extends AppError {
-  constructor(message, code) {
-    super(message, 409, code);
+  constructor(message, code, details) {
+    super(message, 409, code, details);
   }
 }
 
@@ -72,8 +78,8 @@ class ConflictError extends AppError {
  * belakangnya. Klien boleh mencoba lagi nanti; 500 akan menyesatkan.
  */
 class ServiceUnavailableError extends AppError {
-  constructor(message, code) {
-    super(message, 503, code);
+  constructor(message, code, details) {
+    super(message, 503, code, details);
   }
 }
 

@@ -93,7 +93,10 @@ class ErrorHandler {
 
   handle = (err, req, res, next) => {
     if (err instanceof AppError) {
-      return errorResponse(res, err.statusCode, err.message, { code: err.code });
+      return errorResponse(res, err.statusCode, err.message, {
+        code: err.code,
+        details: err.details,
+      });
     }
 
     // Diperiksa lebih awal, sebelum cabang 500. Sebelum ini, JSON rusak dari

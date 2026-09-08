@@ -15,7 +15,7 @@ class UsersController {
   }
 
   list = async (req, res) => {
-    const { page, limit } = req.query;
+    const { page, limit } = req.valid.query;
 
     const { users, meta } = await this.users.list({ page, limit });
 
@@ -29,7 +29,7 @@ class UsersController {
   };
 
   getById = async (req, res) => {
-    const user = await this.users.getById(req.params.id);
+    const user = await this.users.getById(req.valid.params.id);
 
     return successResponse(res, 200, 'Detail user berhasil diambil', {
       user: toUserDto(user),
@@ -37,7 +37,7 @@ class UsersController {
   };
 
   create = async (req, res) => {
-    const { email, password, fullName, phone, roleIds } = req.body ?? {};
+    const { email, password, fullName, phone, roleIds } = req.valid.body;
 
     const user = await this.users.create({ email, password, fullName, phone, roleIds });
 
@@ -48,9 +48,9 @@ class UsersController {
   // aturan "tidak boleh mengelola diri sendiri" dan "hanya superadmin boleh
   // mengelola superadmin". Identitas pelaku selalu dari token, bukan dari body.
   update = async (req, res) => {
-    const { fullName, phone, isActive } = req.body ?? {};
+    const { fullName, phone, isActive } = req.valid.body;
 
-    const user = await this.users.update(req.user.id, req.params.id, {
+    const user = await this.users.update(req.user.id, req.valid.params.id, {
       fullName,
       phone,
       isActive,
@@ -62,9 +62,9 @@ class UsersController {
   };
 
   setRoles = async (req, res) => {
-    const { roleIds } = req.body ?? {};
+    const { roleIds } = req.valid.body;
 
-    const user = await this.users.setRoles(req.user.id, req.params.id, roleIds);
+    const user = await this.users.setRoles(req.user.id, req.valid.params.id, roleIds);
 
     return successResponse(res, 200, 'Role user berhasil diperbarui', {
       user: toUserDto(user),
@@ -72,7 +72,7 @@ class UsersController {
   };
 
   remove = async (req, res) => {
-    await this.users.remove(req.user.id, req.params.id);
+    await this.users.remove(req.user.id, req.valid.params.id);
 
     return successResponse(res, 200, 'User berhasil dihapus');
   };

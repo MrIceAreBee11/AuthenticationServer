@@ -8,8 +8,6 @@
  * dan tidak bisa diuji tanpa broker hidup, padahal yang benar-benar ia
  * butuhkan hanya "sesuatu yang bisa dititipi pesan".
  */
-const { BadRequestError } = require('../../utils/AppError');
-const { ERROR_CODES } = require('../../constants/errorCodes');
 const { successResponse } = require('../../utils/response');
 const { QUEUES } = require('../../constants/cacheKeys');
 const { toUserDto } = require('../../mappers/user.mapper');
@@ -28,15 +26,10 @@ class AuthController {
     this.appUrl = appUrl;
   }
 
+  // req.valid, bukan req.body: bentuknya sudah dijamin middleware validate,
+  // dan membacanya dari sini membuktikan validasinya memang berjalan.
   login = async (req, res) => {
-    const { email, password } = req.body ?? {};
-
-    if (!email || !password) {
-      throw new BadRequestError(
-        'Email dan password wajib diisi',
-        ERROR_CODES.VALIDATION_FAILED
-      );
-    }
+    const { email, password } = req.valid.body;
 
     const { token, refreshToken, user } = await this.auth.login({ email, password });
 
@@ -54,7 +47,7 @@ class AuthController {
    * Refresh token di dalam body yang menjadi bukti identitasnya.
    */
   refresh = async (req, res) => {
-    const { refreshToken } = req.body ?? {};
+    const { refreshToken } = req.valid.body;
 
     const rotated = await this.auth.refresh({ refreshToken });
 
@@ -77,7 +70,7 @@ class AuthController {
     // refreshToken opsional. Kalau dikirim, rangkaian sesinya ikut dicabut
     // sehingga perangkat itu benar-benar keluar; kalau tidak, hanya access
     // token yang dicabut dan sesinya masih dapat diperbarui.
-    const { refreshToken } = req.body ?? {};
+    const { refreshToken } = req.valid.body;
 
     await this.auth.logout({
       tokenId: req.token.id,
@@ -101,11 +94,7 @@ class AuthController {
   };
 
   forgotPassword = async (req, res) => {
-    const { email } = req.body ?? {};
-
-    if (!email) {
-      throw new BadRequestError('Email wajib diisi', ERROR_CODES.VALIDATION_FAILED);
-    }
+    const { email } = req.valid.body;
 
     const result = await this.passwords.requestReset({ email });
 
@@ -134,14 +123,7 @@ class AuthController {
   };
 
   resetPassword = async (req, res) => {
-    const { token, newPassword } = req.body ?? {};
-
-    if (!token || !newPassword) {
-      throw new BadRequestError(
-        'Token dan password baru wajib diisi',
-        ERROR_CODES.VALIDATION_FAILED
-      );
-    }
+    const { token, newPassword } = req.valid.body;
 
     await this.passwords.resetPassword({ token, newPassword });
 

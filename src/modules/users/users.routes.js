@@ -12,17 +12,51 @@
 const { Router } = require('express');
 
 const { PERMISSIONS } = require('../../constants/permissions');
+const { validate } = require('../../middlewares/validate');
+const {
+  listUsersQuerySchema,
+  userIdParamSchema,
+  createUserSchema,
+  updateUserSchema,
+  setUserRolesSchema,
+} = require('./users.schema');
 
 const buildUsersRoutes = ({ controllers, authenticate, authorize }) => {
   const router = Router();
   const users = controllers.users;
   const requireToken = authenticate.handle;
 
-  router.get('/', requireToken, authorize.require(PERMISSIONS.USERS_READ), users.list);
-  router.post('/', requireToken, authorize.require(PERMISSIONS.USERS_CREATE), users.create);
-  router.get('/:id', requireToken, authorize.require(PERMISSIONS.USERS_READ), users.getById);
-  router.patch('/:id', requireToken, authorize.require(PERMISSIONS.USERS_UPDATE), users.update);
-  router.delete('/:id', requireToken, authorize.require(PERMISSIONS.USERS_DELETE), users.remove);
+  const canRead = authorize.require(PERMISSIONS.USERS_READ);
+  const withId = validate(userIdParamSchema, 'params');
+
+  router.get('/', requireToken, canRead, validate(listUsersQuerySchema, 'query'), users.list);
+
+  router.post(
+    '/',
+    requireToken,
+    authorize.require(PERMISSIONS.USERS_CREATE),
+    validate(createUserSchema),
+    users.create
+  );
+
+  router.get('/:id', requireToken, canRead, withId, users.getById);
+
+  router.patch(
+    '/:id',
+    requireToken,
+    authorize.require(PERMISSIONS.USERS_UPDATE),
+    withId,
+    validate(updateUserSchema),
+    users.update
+  );
+
+  router.delete(
+    '/:id',
+    requireToken,
+    authorize.require(PERMISSIONS.USERS_DELETE),
+    withId,
+    users.remove
+  );
 
   // Dijaga roles.update, BUKAN users.update. Kalau dijaga users.update, setiap
   // pemegang izin itu dapat memberikan role superadmin kepada dirinya sendiri
@@ -31,6 +65,8 @@ const buildUsersRoutes = ({ controllers, authenticate, authorize }) => {
     '/:id/roles',
     requireToken,
     authorize.require(PERMISSIONS.ROLES_UPDATE),
+    withId,
+    validate(setUserRolesSchema),
     users.setRoles
   );
 

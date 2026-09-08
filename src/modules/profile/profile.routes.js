@@ -12,6 +12,8 @@
 const { Router } = require('express');
 
 const { PERMISSIONS } = require('../../constants/permissions');
+const { validate } = require('../../middlewares/validate');
+const { updateProfileSchema } = require('./profile.schema');
 
 const buildProfileRoutes = ({ controllers, authenticate, authorize, upload }) => {
   const router = Router();
@@ -21,7 +23,7 @@ const buildProfileRoutes = ({ controllers, authenticate, authorize, upload }) =>
   const canUpdate = authorize.require(PERMISSIONS.PROFILE_UPDATE);
 
   router.get('/', requireToken, canRead, profile.get);
-  router.patch('/', requireToken, canUpdate, profile.update);
+  router.patch('/', requireToken, canUpdate, validate(updateProfileSchema), profile.update);
 
   // upload diletakkan SETELAH authenticate dan authorize. Multer membaca
   // seluruh body ke memori; kalau ia dipasang lebih dulu, permintaan tanpa
