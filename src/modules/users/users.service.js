@@ -19,6 +19,7 @@ const {
 } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
 const { ROLES } = require('../../constants/roles');
+const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 
 
@@ -26,8 +27,9 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class UsersService {
-  constructor({ users, roles, permissions, storage, policy, paging, database, logger }) {
+  constructor({ users, roles, permissions, storage, policy, paging, database, logger, audit }) {
     this.logger = logger;
+    this.audit = audit;
     this.users = users;
     this.roles = roles;
     this.permissions = permissions;
@@ -70,6 +72,13 @@ class UsersService {
    */
   async #assertCanManage(actorId, target) {
     if (actorId === target.id) {
+      await this.audit.recordDenied({
+        action: AUDIT_ACTIONS.USER_UPDATED,
+        resourceType: AUDIT_RESOURCES.USER,
+        resourceId: target.id,
+        reason: 'mencoba mengelola akun sendiri lewat endpoint users',
+      });
+
       throw new ForbiddenError(
         'Gunakan endpoint /profile untuk mengubah akun Anda sendiri',
         ERROR_CODES.SELF_MANAGEMENT_FORBIDDEN
@@ -80,6 +89,15 @@ class UsersService {
       const actor = await this.#findOrFail(actorId);
 
       if (!this.#isSuperadmin(actor)) {
+        // Percobaan menyentuh akun superadmin oleh yang bukan superadmin
+        // adalah kejadian yang paling perlu terlihat dalam jejak audit.
+        await this.audit.recordDenied({
+          action: AUDIT_ACTIONS.USER_UPDATED,
+          resourceType: AUDIT_RESOURCES.USER,
+          resourceId: target.id,
+          reason: 'bukan superadmin, mencoba mengelola akun superadmin',
+        });
+
         throw new ForbiddenError(
           'Anda tidak dapat mengelola akun superadmin',
           ERROR_CODES.SUPERADMIN_PROTECTED
@@ -176,6 +194,13 @@ class UsersService {
       return user;
     });
 
+    await this.audit.record({
+      action: AUDIT_ACTIONS.USER_CREATED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: created.id,
+      metadata: { email: created.email, roleIds: roles?.map((role) => role.id) ?? [] },
+    });
+
     return this.#findOrFail(created.id);
   }
 
@@ -214,6 +239,15 @@ class UsersService {
 
     await this.users.update(target, changes);
 
+    // Nama field yang berubah dicatat, ISINYA tidak. Jejak audit tidak boleh
+    // menjadi tempat kedua yang menyimpan data pribadi.
+    await this.audit.record({
+      action: AUDIT_ACTIONS.USER_UPDATED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+      metadata: { fields: Object.keys(changes) },
+    });
+
     return this.#findOrFail(userId);
   }
 
@@ -234,6 +268,18 @@ class UsersService {
     await this.users.setRoles(target, roles);
     await this.permissions.invalidateUser(userId);
 
+    // Perubahan wewenang: yang lama dan yang baru dicatat, supaya pertanyaan
+    // "sejak kapan orang ini jadi admin" punya jawaban.
+    await this.audit.record({
+      action: AUDIT_ACTIONS.USER_ROLES_CHANGED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+      metadata: {
+        from: target.roles.map((role) => role.name),
+        to: roles.map((role) => role.name),
+      },
+    });
+
     return this.#findOrFail(userId);
   }
 
@@ -249,6 +295,13 @@ class UsersService {
     // MinIO — berkas di luar basis data harus dibersihkan di sini.
     await this.users.destroy(target);
     await this.permissions.invalidateUser(userId);
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.USER_DELETED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+      metadata: { email: target.email },
+    });
 
     if (avatarKey) {
       try {

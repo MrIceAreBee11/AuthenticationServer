@@ -17,6 +17,7 @@ const crypto = require('node:crypto');
 
 const { BadRequestError, NotFoundError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
+const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/;
 
@@ -27,8 +28,9 @@ const EXTENSION_BY_MIME = {
 };
 
 class ProfileService {
-  constructor({ users, storage, avatar, logger }) {
+  constructor({ users, storage, avatar, logger, audit }) {
     this.logger = logger;
+    this.audit = audit;
     this.users = users;
     this.storage = storage;
     this.avatar = avatar;
@@ -113,6 +115,13 @@ class ProfileService {
 
     await this.users.update(user, changes);
 
+    await this.audit.record({
+      action: AUDIT_ACTIONS.PROFILE_UPDATED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+      metadata: { fields: Object.keys(changes) },
+    });
+
     return this.getProfile(userId);
   }
 
@@ -131,6 +140,13 @@ class ProfileService {
 
     await this.users.update(user, { avatarKey: objectKey });
 
+    await this.audit.record({
+      action: AUDIT_ACTIONS.AVATAR_UPLOADED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+      metadata: { mimeType: file.mimetype, sizeBytes: file.size },
+    });
+
     if (previousKey) {
       await this.#removeObjectQuietly(previousKey, 'avatar lama');
     }
@@ -148,6 +164,12 @@ class ProfileService {
     const previousKey = user.avatarKey;
 
     await this.users.update(user, { avatarKey: null });
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.AVATAR_REMOVED,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: userId,
+    });
     await this.#removeObjectQuietly(previousKey, 'avatar');
 
     return this.getProfile(userId);

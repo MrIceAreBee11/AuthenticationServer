@@ -11,6 +11,7 @@ const {
   fakeRefreshTokenRepository,
   testTokenService,
   testPasswordPolicy,
+  fakeAudit,
 } = require('./fakes');
 
 const PESAN_TOKEN_TIDAK_VALID = 'Token reset tidak valid atau sudah kedaluwarsa';
@@ -20,6 +21,7 @@ const buildService = ({ user = null, userId = null } = {}) => {
   const users = fakeUserRepository({ user, log });
   const resetTokens = fakeResetTokenRepository({ userId, log });
   const refreshTokens = fakeRefreshTokenRepository({ log });
+  const audit = fakeAudit({ log });
 
   return {
     service: new PasswordService({
@@ -28,7 +30,9 @@ const buildService = ({ user = null, userId = null } = {}) => {
       refreshTokens,
       tokens: testTokenService(),
       policy: testPasswordPolicy(),
+      audit,
     }),
+    audit,
     users,
     resetTokens,
     refreshTokens,
@@ -171,12 +175,15 @@ test('PasswordService.resetPassword', async (t) => {
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
 
+    // Jejak audit ditulis PALING AKHIR, setelah mutasinya terbukti berhasil.
+    // Menulisnya lebih dulu berarti mencatat perubahan yang mungkin gagal.
     assert.deepEqual(log, [
       'resetTokens.findUserId',
       'users.findById',
       'users.update',
       'refreshTokens.revokeAllForUser',
       'resetTokens.remove',
+      'audit.record',
     ]);
   });
 

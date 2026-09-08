@@ -29,8 +29,9 @@ const { BEARER_PREFIX } = require('../constants/cacheKeys');
 const { ERROR_CODES } = require('../constants/errorCodes');
 
 class AuthenticateMiddleware {
-  constructor({ users, denylist, tokens, logger }) {
+  constructor({ users, denylist, tokens, logger, context }) {
     this.logger = logger;
+    this.context = context;
     this.users = users;
     this.denylist = denylist;
     this.tokens = tokens;
@@ -128,6 +129,10 @@ class AuthenticateMiddleware {
 
     req.user = user;
     req.token = { id: payload.jti, expiresAt: payload.exp };
+
+    // Dititipkan ke store permintaan supaya jejak audit dan log tahu siapa
+    // pelakunya tanpa perlu diteruskan lewat argumen ke setiap lapisan.
+    this.context?.set({ userId: user.id });
 
     return next();
   };

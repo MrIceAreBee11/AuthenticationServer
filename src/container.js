@@ -38,8 +38,10 @@ const {
   PasswordResetTokenRepository,
 } = require('./repositories/passwordResetToken.repository');
 const { HealthRepository } = require('./repositories/health.repository');
+const { AuditRepository } = require('./repositories/audit.repository');
 
 const { PermissionService } = require('./services/permission.service');
+const { AuditService } = require('./services/audit.service');
 const { AuthService } = require('./modules/auth/auth.service');
 const { PasswordService } = require('./modules/auth/password.service');
 const { ProfileService } = require('./modules/profile/profile.service');
@@ -95,6 +97,7 @@ class Container {
     const refreshTokens = new RefreshTokenRepository({ RefreshToken: models.RefreshToken });
     const denylist = new TokenDenylistRepository(this.cache);
     const resetTokens = new PasswordResetTokenRepository(this.cache);
+    const auditRepository = new AuditRepository({ AuditLog: models.AuditLog });
     const health = new HealthRepository({
       database: this.database,
       cache: this.cache,
@@ -102,6 +105,14 @@ class Container {
     });
 
     // Services
+    // Jejak audit dirakit paling awal di antara service: hampir semua service
+    // yang mengubah data memakainya.
+    const audit = new AuditService({
+      audit: auditRepository,
+      context: this.context,
+      logger: this.logger.child({ component: 'audit' }),
+    });
+
     // PermissionService di-cache dan di-share ke auth/roles/users
     // Dipakai oleh beberapa fitur, jadi dibuat sebelum service yang membutuhkannya.
     const permissionCache = new PermissionService({
@@ -119,6 +130,7 @@ class Container {
       tokens: this.tokens,
       ttlSeconds: settings.token.refreshTtlSeconds,
       logger: this.logger.child({ component: 'auth' }),
+      audit,
 
       // Hash ini dipakai untuk menjaga waktu proses login tetap mirip ketika
       // user tidak ditemukan. Cost factor-nya mengikuti konfigurasi yang aktif,
@@ -136,6 +148,7 @@ class Container {
       refreshTokens,
       tokens: this.tokens,
       policy: settings.password,
+      audit,
     });
 
     const profiles = new ProfileService({
@@ -143,6 +156,7 @@ class Container {
       storage: this.storage,
       avatar: settings.upload.avatar,
       logger: this.logger.child({ component: 'profile' }),
+      audit,
     });
 
     const usersService = new UsersService({
@@ -154,6 +168,7 @@ class Container {
       policy: settings.password,
       paging: settings.pagination.users,
       logger: this.logger.child({ component: 'users' }),
+      audit,
     });
 
     const rolesService = new RolesService({
@@ -161,6 +176,7 @@ class Container {
       roles,
       permissions,
       permissionCache,
+      audit,
     });
 
     this.permissionService = permissionCache;
@@ -176,6 +192,7 @@ class Container {
       denylist,
       tokens: this.tokens,
       logger: this.logger.child({ component: 'auth' }),
+      context: this.context,
     });
 
     this.authorize = new AuthorizeMiddleware({ permissions: permissionCache });

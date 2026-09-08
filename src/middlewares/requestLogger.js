@@ -69,7 +69,7 @@ class RequestLoggerMiddleware {
     // Seluruh sisa rantai berjalan di dalam store ini, jadi service dan
     // repository beberapa lapis di bawah tetap mencantumkan requestId yang
     // benar tanpa menerimanya lewat argumen.
-    this.context.run({ requestId }, () => next());
+    this.context.run({ requestId, ip: req.ip ?? null }, () => next());
   };
 }
 

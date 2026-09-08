@@ -15,6 +15,7 @@ const {
   NotFoundError,
 } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
+const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 /**
  * Hash asli dari string acak yang tidak pernah menjadi password siapa pun.
@@ -49,9 +50,11 @@ class AuthService {
     tokens,
     ttlSeconds,
     logger,
+    audit,
     dummyPasswordHash = DUMMY_PASSWORD_HASH,
   }) {
     this.logger = logger;
+    this.audit = audit;
     this.users = users;
     this.denylist = denylist;
     this.refreshTokens = refreshTokens;
@@ -156,6 +159,15 @@ class AuthService {
       this.logger.warn('refresh token dipakai ulang, rangkaian sesi dicabut', {
         userId: stored.userId,
         familyId: stored.familyId,
+      });
+
+      // Kejadian keamanan, bukan sekadar kegagalan. Masuk jejak audit supaya
+      // tetap ada setelah log aplikasi dirotasi.
+      await this.audit.recordDenied({
+        action: AUDIT_ACTIONS.REFRESH_TOKEN_REUSED,
+        resourceType: AUDIT_RESOURCES.SESSION,
+        resourceId: stored.familyId,
+        reason: 'refresh token yang sudah dirotasi dipakai kembali',
       });
 
       throw new UnauthorizedError(

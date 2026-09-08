@@ -22,6 +22,7 @@ const {
 } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
 const { PROTECTED_ROLES } = require('../../constants/roles');
+const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 // Daftarnya ada di constants/roles.js, dibaca juga oleh users.service.
 // Dulu teks 'superadmin' ditulis ulang di kedua berkas; salah ketik di salah
@@ -29,8 +30,9 @@ const { PROTECTED_ROLES } = require('../../constants/roles');
 const PROTECTED_ROLE_NAMES = PROTECTED_ROLES;
 
 class RolesService {
-  constructor({ roles, permissions, permissionCache, database }) {
+  constructor({ roles, permissions, permissionCache, database, audit }) {
     this.database = database;
+    this.audit = audit;
     this.roles = roles;
     this.permissions = permissions;
     this.permissionCache = permissionCache;
@@ -147,6 +149,13 @@ class RolesService {
       return role;
     });
 
+    await this.audit.record({
+      action: AUDIT_ACTIONS.ROLE_CREATED,
+      resourceType: AUDIT_RESOURCES.ROLE,
+      resourceId: created.id,
+      metadata: { name: created.name, permissionIds: permissions.map((item) => item.id) },
+    });
+
     return this.getById(created.id);
   }
 
@@ -181,6 +190,13 @@ class RolesService {
 
     await this.roles.update(role, changes);
 
+    await this.audit.record({
+      action: AUDIT_ACTIONS.ROLE_UPDATED,
+      resourceType: AUDIT_RESOURCES.ROLE,
+      resourceId: roleId,
+      metadata: { fields: Object.keys(changes) },
+    });
+
     return this.getById(roleId);
   }
 
@@ -194,6 +210,18 @@ class RolesService {
     // penghapusan cache per pengguna tidak menjangkau itu. Menaikkan versi
     // membuat seluruh cache lama tidak terjangkau dalam satu operasi.
     await this.permissionCache.bumpVersion();
+
+    // Perubahan izin sebuah role memengaruhi seluruh pemakainya sekaligus,
+    // jadi yang lama dan yang baru dicatat keduanya.
+    await this.audit.record({
+      action: AUDIT_ACTIONS.ROLE_PERMISSIONS_CHANGED,
+      resourceType: AUDIT_RESOURCES.ROLE,
+      resourceId: roleId,
+      metadata: {
+        from: role.permissions?.map((item) => item.name) ?? [],
+        to: permissions.map((item) => item.name),
+      },
+    });
 
     return this.getById(roleId);
   }
@@ -217,6 +245,13 @@ class RolesService {
 
     await this.roles.destroy(role);
     await this.permissionCache.bumpVersion();
+
+    await this.audit.record({
+      action: AUDIT_ACTIONS.ROLE_DELETED,
+      resourceType: AUDIT_RESOURCES.ROLE,
+      resourceId: roleId,
+      metadata: { name: role.name },
+    });
   }
 }
 

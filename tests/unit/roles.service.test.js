@@ -9,6 +9,7 @@ const {
   fakePermissionRepository,
   fakePermissionCache,
   fakeDatabase,
+  fakeAudit,
 } = require('./fakes');
 
 const buildService = ({
@@ -24,6 +25,7 @@ const buildService = ({
     byIds: permissionsByIds,
   });
   const permissionCache = fakePermissionCache();
+  const audit = fakeAudit();
 
   return {
     service: new RolesService({
@@ -31,7 +33,9 @@ const buildService = ({
       permissions: permissionsRepo,
       permissionCache,
       database: fakeDatabase(),
+      audit,
     }),
+    audit,
     rolesRepo,
     permissionsRepo,
     permissionCache,

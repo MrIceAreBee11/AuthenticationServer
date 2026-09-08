@@ -33,6 +33,24 @@ class RequestContext {
   get requestId() {
     return this.store?.requestId ?? null;
   }
+
+  /**
+   * Menambah keterangan ke store yang sedang berjalan.
+   *
+   * Dipakai middleware autentikasi untuk menitipkan identitas pelaku, supaya
+   * jejak audit dan log tahu siapa yang bertindak tanpa perlu meneruskannya
+   * lewat argumen ke setiap lapisan di bawahnya.
+   *
+   * Di luar siklus permintaan ia tidak melakukan apa pun — bukan melempar.
+   * Service yang sama juga dipanggil seeder, dan seeder tidak punya store.
+   */
+  set(fields) {
+    const store = this.store;
+
+    if (store) {
+      Object.assign(store, fields);
+    }
+  }
 }
 
 module.exports = { RequestContext };

@@ -20,6 +20,7 @@ const MODEL_FACTORIES = {
   Role: require('./models/role'),
   Permission: require('./models/permission'),
   RefreshToken: require('./models/refreshToken'),
+  AuditLog: require('./models/auditLog'),
 };
 
 class Database {

@@ -12,6 +12,7 @@ const {
   fakeRefreshTokenRow,
   fakeRefreshTokenRepository,
   fakeLogger,
+  fakeAudit,
   testTokenService,
   testPasswordPolicy,
 } = require('./fakes');
@@ -26,6 +27,7 @@ const buildService = ({ user = null, row = null } = {}) => {
   const refreshTokens = fakeRefreshTokenRepository({ row, log });
   const denylist = fakeDenylistRepository({ log });
   const logger = fakeLogger();
+  const audit = fakeAudit({ log });
 
   return {
     service: new AuthService({
@@ -35,7 +37,9 @@ const buildService = ({ user = null, row = null } = {}) => {
       tokens: testTokenService(),
       ttlSeconds: REFRESH_TTL_SECONDS,
       logger,
+      audit,
     }),
+    audit,
     users,
     refreshTokens,
     denylist,
@@ -366,6 +370,7 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
       tokens: testTokenService(),
       policy: testPasswordPolicy(),
       logger: fakeLogger(),
+      audit: fakeAudit({ log }),
     });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
@@ -388,16 +393,20 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
       tokens: testTokenService(),
       policy: testPasswordPolicy(),
       logger: fakeLogger(),
+      audit: fakeAudit({ log }),
     });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
 
+    // Jejak audit ditulis PALING AKHIR, setelah mutasinya terbukti berhasil.
+    // Menulisnya lebih dulu berarti mencatat perubahan yang mungkin gagal.
     assert.deepEqual(log, [
       'resetTokens.findUserId',
       'users.findById',
       'users.update',
       'refreshTokens.revokeAllForUser',
       'resetTokens.remove',
+      'audit.record',
     ]);
   });
 

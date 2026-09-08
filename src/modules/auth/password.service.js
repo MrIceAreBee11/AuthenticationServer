@@ -7,6 +7,7 @@
  */
 const { BadRequestError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
+const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 class PasswordService {
   /**
@@ -20,7 +21,9 @@ class PasswordService {
     refreshTokens,
     tokens,
     policy,
+    audit,
   }) {
+    this.audit = audit;
     this.users = users;
     this.resetTokens = resetTokens;
     this.refreshTokens = refreshTokens;
@@ -99,6 +102,16 @@ class PasswordService {
     await this.refreshTokens.revokeAllForUser(user.id);
 
     await this.resetTokens.remove(token);
+
+    // Dicatat tanpa pelaku: reset password dijalankan tanpa autentikasi, jadi
+    // yang diketahui hanya akun mana yang terpengaruh. Justru itu yang membuat
+    // ia perlu dicatat — perubahan password tanpa sesi yang terbukti.
+    await this.audit.record({
+      action: AUDIT_ACTIONS.PASSWORD_RESET,
+      resourceType: AUDIT_RESOURCES.USER,
+      resourceId: user.id,
+      metadata: { sessionsRevoked: true },
+    });
 
     return user;
   }

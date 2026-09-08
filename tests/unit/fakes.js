@@ -310,6 +310,31 @@ const fakeLogger = () => {
   };
 };
 
+/**
+ * Pencatat audit palsu yang merekam, bukan menulis ke basis data.
+ *
+ * Dipakai untuk membuktikan bahwa perubahan data DAN percobaan yang ditolak
+ * benar-benar meninggalkan jejak — bagian yang paling mudah lupa ditulis dan
+ * paling sulit disadari hilangnya.
+ */
+const fakeAudit = ({ log = createLog() } = {}) => {
+  const entries = [];
+
+  return {
+    log,
+    entries,
+    record: logged(log, 'audit.record', async (entry) => {
+      entries.push({ ...entry, outcome: 'allowed' });
+    }),
+    recordDenied: logged(log, 'audit.recordDenied', async (entry) => {
+      entries.push({ ...entry, outcome: 'denied' });
+    }),
+    /** Baris audit dengan aksi tertentu; dipakai assertion. */
+    of: (action) => entries.filter((entry) => entry.action === action),
+    denied: () => entries.filter((entry) => entry.outcome === 'denied'),
+  };
+};
+
 /** Objek res palsu yang merekam status dan isi jawaban. */
 const fakeResponse = () => {
   const res = {
@@ -337,6 +362,7 @@ const silenceErrorLog = () => mock.method(console, 'error', () => {});
 const silenceInfoLog = () => mock.method(console, 'log', () => {});
 
 module.exports = {
+  fakeAudit,
   fakeLogger,
   testTokenService,
   testPasswordPolicy,
