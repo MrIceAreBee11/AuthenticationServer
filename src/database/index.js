@@ -15,6 +15,7 @@ const models = {
   User: require('./models/user')(sequelize),
   Role: require('./models/role')(sequelize),
   Permission: require('./models/permission')(sequelize),
+  RefreshToken: require('./models/refreshToken')(sequelize),
 };
 
 Object.values(models).forEach((model) => {

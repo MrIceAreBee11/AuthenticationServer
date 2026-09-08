@@ -14,7 +14,7 @@ Dilengkapi **antarmuka console** untuk memperagakan seluruh endpoint tanpa perlu
 - **Lupa password** — token acak berumur pendek di Redis, pengiriman email asinkron lewat RabbitMQ
 - **Profil** — data diri dan unggah foto avatar ke object storage
 - **Manajemen pengguna & role** — pembuatan akun oleh administrator, penetapan role, pengaturan izin
-- **Console** — antarmuka web yang mencakup seluruh 25 endpoint, lengkap dengan panel lalu lintas API
+- **Console** — antarmuka web yang mencakup seluruh 26 endpoint, lengkap dengan panel lalu lintas API
 
 ---
 
@@ -79,8 +79,8 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm run test:unit` | 99 pengujian unit — tanpa Docker, tanpa database |
-| `npm run test:e2e` | 15 pengujian end-to-end — perlu seluruh layanan hidup |
+| `npm run test:unit` | 138 pengujian unit — tanpa Docker, tanpa database |
+| `npm run test:e2e` | 27 pengujian end-to-end — perlu seluruh layanan hidup |
 | `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
 | `npm test` | Unit lalu end-to-end |
 
@@ -115,10 +115,13 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 | `modules/auth/auth.service.js` | 100% | 100% |
 | `modules/auth/password.service.js` | 100% | 100% |
 | `services/permission.service.js` | 97,5% | 93,9% |
+| `utils/duration.js` | 100% | 100% |
 | `modules/roles/roles.service.js` | 92,4% | 95,8% |
 | `repositories/passwordResetToken.repository.js` | 100% | 100% |
 | `repositories/tokenDenylist.repository.js` | 100% | 100% |
 | `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
+
+Keseluruhan 89,4 persen baris dan 96,2 persen cabang.
 
 Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
 Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
@@ -135,6 +138,7 @@ Seluruhnya berawalan `/api/v1`.
 | GET | `/health` | terbuka |
 | GET | `/health/ready` | terbuka |
 | POST | `/auth/login` | terbuka, 5 percobaan / 15 menit |
+| POST | `/auth/refresh` | terbuka, cukup refresh token yang sah |
 | GET | `/auth/me` | token sah |
 | POST | `/auth/logout` | token sah |
 | GET | `/auth/permissions` | token sah (izin milik sendiri) |

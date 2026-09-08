@@ -235,7 +235,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 | 3 | Buka **Matriks Izin** | **Inti demo.** Perbedaan panjang kolom = perbedaan wewenang. Tunjuk baris `roles.create` dan `roles.update` yang hanya dimiliki superadmin | 1 mnt |
 | 4 | Klik **Ubah Izin**, cabut satu izin dari role `admin`, simpan | Panel kanan menampilkan `PUT /roles/:id/permissions`. Sebutkan versi cache dinaikkan sehingga seluruh pengguna role itu langsung terpengaruh | 1 mnt |
 | 5 | Buka **Pengguna**, klik **Role** pada Dewi Lestari, beri role `user` | Perubahan role berlaku seketika tanpa pengguna perlu login ulang | 1 mnt |
-| 6 | Buka **Status & Cakupan** | Daftar 25 endpoint, yang sudah dipanggil menyala hijau | 45 dtk |
+| 6 | Buka **Status & Cakupan** | Daftar 26 endpoint, yang sudah dipanggil menyala hijau | 45 dtk |
 | 7 | Klik satu entri di panel kanan | Isi request dan response mentah — bukti API-nya nyata | 15 dtk |
 
 **Persiapan sebelum presentasi:**
@@ -323,13 +323,15 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 
 **Isi:** angka besar dalam grid
 
-- **25** endpoint pada 6 modul
-- **5** tabel dengan relasi many-to-many ganda
+- **26** endpoint pada 6 modul
+- **6** tabel dengan relasi many-to-many ganda
 - **19** ancaman keamanan terdokumentasi
-- **15** pengujian otomatis, seluruhnya lulus
+- **165** pengujian otomatis, seluruhnya lulus
 - **6** layanan berjalan dengan satu perintah
 
-**Batasan yang disadari** (baris kecil di bawah): logging terstruktur, antrean pesan gagal, refresh token, dan pemeriksaan isi berkas unggahan — masing-masing sudah ada catatan kapan sebaiknya ditambahkan.
+**Batasan yang disadari** (baris kecil di bawah): logging terstruktur, antrean pesan gagal, daftar sesi aktif per perangkat, batas umur mutlak sesi, dan pemeriksaan isi berkas unggahan — masing-masing sudah ada catatan kapan sebaiknya ditambahkan.
+
+> **Catatan pemutakhiran.** Brief ini disusun sebelum empat perbaikan pada Bab 12 dikerjakan (katalog izin, lapisan repository, pengujian unit, dan refresh token). Angka di atas sudah disesuaikan, tetapi kalau presentasinya diberikan setelah perbaikan itu, pertimbangkan menambah satu slide untuk Bab 12 — bagian itu justru yang paling menarik dibahas dengan pembimbing, karena isinya masukan beliau sendiri yang ditindaklanjuti.
 
 **Penutup:** Terima kasih — siap untuk pertanyaan
 

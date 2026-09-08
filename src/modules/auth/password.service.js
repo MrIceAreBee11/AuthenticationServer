@@ -1,19 +1,25 @@
-const crypto = require('node:crypto');
-
 const AppError = require('../../utils/AppError');
+const { createOpaqueToken } = require('../../utils/token');
 const { userRepository } = require('../../repositories/user.repository');
 const {
   passwordResetTokenRepository,
 } = require('../../repositories/passwordResetToken.repository');
+const {
+  refreshTokenRepository,
+} = require('../../repositories/refreshToken.repository');
 
 const RESET_TTL_SECONDS = 15 * 60;
-const TOKEN_BYTES = 32;
 const MIN_PASSWORD_LENGTH = 12;
 
 class PasswordService {
-  constructor({ users = userRepository, resetTokens = passwordResetTokenRepository } = {}) {
+  constructor({
+    users = userRepository,
+    resetTokens = passwordResetTokenRepository,
+    refreshTokens = refreshTokenRepository,
+  } = {}) {
     this.users = users;
     this.resetTokens = resetTokens;
+    this.refreshTokens = refreshTokens;
   }
 
   /**
@@ -31,7 +37,7 @@ class PasswordService {
       return null;
     }
 
-    const resetToken = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+    const resetToken = createOpaqueToken();
 
     await this.resetTokens.save(resetToken, user.id, RESET_TTL_SECONDS);
 
@@ -64,6 +70,19 @@ class PasswordService {
     // Kalau dibalik dan pembaruan gagal, token sudah lenyap sementara password
     // belum berubah — pengguna terjebak dengan tautan yang sudah mati.
     await this.users.update(user, { passwordHash: newPassword });
+
+    // Ganti password harus mengeluarkan seluruh sesi yang sedang berjalan,
+    // termasuk milik pihak yang mungkin sudah masuk tanpa hak. Access token
+    // sudah tertangani oleh perbandingan passwordChangedAt di middleware
+    // authenticate, tetapi refresh token tersimpan di basis data dan tidak
+    // ikut terpengaruh — ia harus dicabut secara eksplisit di sini.
+    //
+    // Dilakukan sebelum token reset dihapus. Kalau pencabutan gagal,
+    // permintaannya berakhir dengan error dan tautan resetnya masih dapat
+    // dipakai lagi; kalau urutannya dibalik, kegagalan yang sama meninggalkan
+    // password baru berikut sesi-sesi lama yang masih hidup.
+    await this.refreshTokens.revokeAllForUser(user.id);
+
     await this.resetTokens.remove(token);
 
     return user;

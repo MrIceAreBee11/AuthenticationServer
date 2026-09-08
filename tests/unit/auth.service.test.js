@@ -9,13 +9,20 @@ const {
   fakeUser,
   fakeUserRepository,
   fakeDenylistRepository,
+  fakeRefreshTokenRepository,
 } = require('./fakes');
 
 const buildService = ({ user = null } = {}) => {
   const users = fakeUserRepository({ user });
   const denylist = fakeDenylistRepository();
+  const refreshTokens = fakeRefreshTokenRepository();
 
-  return { service: new AuthService({ users, denylist }), users, denylist };
+  return {
+    service: new AuthService({ users, denylist, refreshTokens }),
+    users,
+    denylist,
+    refreshTokens,
+  };
 };
 
 test('AuthService.login', async (t) => {

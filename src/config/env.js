@@ -1,5 +1,7 @@
 require('dotenv').config({ quiet: true });
 
+const { parseDuration } = require('../utils/duration');
+
 const REQUIRED_VARS = [
   'NODE_ENV',
   'PORT',
@@ -10,6 +12,7 @@ const REQUIRED_VARS = [
   'DB_PASSWORD',
   'JWT_SECRET',
   'JWT_EXPIRES_IN',
+  'REFRESH_TOKEN_EXPIRES_IN',
   'REDIS_HOST',
   'REDIS_PORT',
   'REDIS_PASSWORD',
@@ -64,6 +67,16 @@ module.exports = {
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN,
+  },
+
+  refreshToken: {
+    // Disimpan dalam detik karena yang dibutuhkan adalah perhitungan tanggal
+    // kedaluwarsa, bukan teksnya. Formatnya divalidasi di sini, jadi salah
+    // tulis satuan menghentikan aplikasi sebelum ia menerima permintaan.
+    expiresInSeconds: parseDuration(
+      process.env.REFRESH_TOKEN_EXPIRES_IN,
+      'REFRESH_TOKEN_EXPIRES_IN'
+    ),
   },
 
   appUrl: process.env.APP_URL,

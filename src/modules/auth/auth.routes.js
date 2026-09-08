@@ -10,6 +10,11 @@ const {
 const router = Router();
 
 router.post('/login', loginRateLimiter, authController.login);
+
+// Tanpa authenticate: endpoint ini justru dipakai saat access token sudah
+// kedaluwarsa. Tanpa rate limiter juga, alasannya sama dengan reset-password
+// di bawah — token 32 byte acak tidak ada yang bisa ditebak.
+router.post('/refresh', authController.refresh);
 router.get('/me', authenticate, authController.me);
 router.post('/logout', authenticate, authController.logout);
 

@@ -121,6 +121,31 @@ const fakeDenylistRepository = ({ revoked = false, log = createLog() } = {}) => 
   isRevoked: logged(log, 'denylist.isRevoked', async () => revoked),
 });
 
+/**
+ * Baris refresh_tokens palsu. Field-nya sengaja hanya yang benar-benar dibaca
+ * service: penanda rangkaian, tanggal kedaluwarsa, dan tanggal pencabutan.
+ */
+const fakeRefreshTokenRow = (overrides = {}) => ({
+  id: 'baris-1',
+  userId: '11111111-1111-4111-8111-111111111111',
+  familyId: 'keluarga-1',
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  revokedAt: null,
+  ...overrides,
+});
+
+const fakeRefreshTokenRepository = ({ row = null, log = createLog() } = {}) => ({
+  log,
+  create: logged(log, 'refreshTokens.create', async (data) => fakeRefreshTokenRow(data)),
+  findByToken: logged(log, 'refreshTokens.findByToken', async () => row),
+  revoke: logged(log, 'refreshTokens.revoke', async (target) =>
+    Object.assign(target, { revokedAt: new Date() })
+  ),
+  revokeFamily: logged(log, 'refreshTokens.revokeFamily', async () => 1),
+  revokeAllForUser: logged(log, 'refreshTokens.revokeAllForUser', async () => 1),
+  deleteExpired: logged(log, 'refreshTokens.deleteExpired', async () => 0),
+});
+
 const fakeResetTokenRepository = ({ userId = null, log = createLog() } = {}) => ({
   log,
   save: logged(log, 'resetTokens.save', async () => undefined),
@@ -256,6 +281,8 @@ module.exports = {
   fakeRole,
   fakeUserRepository,
   fakeDenylistRepository,
+  fakeRefreshTokenRow,
+  fakeRefreshTokenRepository,
   fakeResetTokenRepository,
   fakeRoleRepository,
   fakePermissionRepository,

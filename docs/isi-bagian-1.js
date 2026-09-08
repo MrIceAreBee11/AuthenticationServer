@@ -25,7 +25,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
       ['Login dan logout', 'Pendaftaran mandiri oleh publik'],
       ['Verifikasi token pada setiap request', 'Login lewat Google / OAuth pihak ketiga'],
       ['Pengaturan role dan permission', 'Verifikasi dua langkah (2FA / OTP)'],
-      ['Lupa password lewat email', 'Refresh token'],
+      ['Lupa password lewat email', 'Daftar sesi aktif per perangkat'],
       ['Profil pengguna dan foto avatar', 'Audit log aktivitas pengguna'],
       ['Manajemen user oleh administrator', 'Penggantian alamat email pengguna'],
       ['Pembuatan akun awal lewat seeder', 'Aplikasi frontend untuk pengguna akhir'],
@@ -40,9 +40,9 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   table(
     ['Aspek', 'Hasil'],
     [
-      ['Jumlah endpoint', '25 endpoint pada 6 modul'],
-      ['Tabel database', '5 tabel dengan relasi many-to-many ganda'],
-      ['Pengujian otomatis', '15 pengujian end-to-end, seluruhnya lulus'],
+      ['Jumlah endpoint', '26 endpoint pada 6 modul'],
+      ['Tabel database', '6 tabel dengan relasi many-to-many ganda'],
+      ['Pengujian otomatis', '138 pengujian unit dan 27 pengujian end-to-end, seluruhnya lulus'],
       ['Waktu respons login', 'sekitar 135 milidetik'],
       ['Ketahanan saat worker mati', 'Pesan email tertahan di antrean, tidak ada yang hilang'],
       ['Ketahanan saat broker restart', 'Pesan bertahan karena disimpan ke disk'],
@@ -84,7 +84,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
       ['Peran', 'Menyimpan data permanen: pengguna, role, permission, dan relasi di antara ketiganya.'],
       ['Analogi', 'Lemari arsip yang rapi dan tahan api. Setiap berkas punya tempatnya sendiri, ada aturan yang mencegah berkas ganda, dan isinya tetap ada meski kantor mati listrik.'],
       ['Alasan dipilih', 'Mendukung relasi antar tabel dengan aturan yang ditegakkan oleh database itu sendiri, bukan oleh aplikasi. Punya tipe data UUID bawaan dan transaksi yang andal.'],
-      ['Dipakai untuk', '5 tabel: users, roles, permissions, user_roles, role_permissions.'],
+      ['Dipakai untuk', '6 tabel: users, roles, permissions, user_roles, role_permissions, refresh_tokens.'],
     ],
     [1900, 7126]
   ),
@@ -231,7 +231,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
       ['src/redis/', 'Koneksi ke Redis', 'index.js', 'Logika yang memakai Redis'],
       ['src/queue/', 'Koneksi ke RabbitMQ dan penerbitan pesan', 'index.js', 'Isi pesan atau template email'],
       ['src/storage/', 'Koneksi ke MinIO dan operasi file', 'index.js', 'Aturan validasi file'],
-      ['src/repositories/', 'Satu-satunya tempat penyusunan query ke basis data, Redis, dan storage', 'user.repository.js, role.repository.js', 'Aturan bisnis atau validasi'],
+      ['src/repositories/', 'Satu-satunya tempat penyusunan query ke basis data, Redis, dan storage', 'user.repository.js, refreshToken.repository.js', 'Aturan bisnis atau validasi'],
       ['src/services/', 'Logika bisnis; memanggil repository, tidak menyentuh model', 'permission.service.js', 'Penyusunan query'],
       ['src/middlewares/', 'Pemeriksaan yang dijalankan sebelum controller', 'authenticate.js, authorize.js', 'Logika bisnis fitur'],
       ['src/modules/', 'Fitur-fitur aplikasi, satu folder per fitur', 'auth/, users/, profile/', 'Apa pun yang dipakai lebih dari satu fitur'],
@@ -325,6 +325,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
     '                        permission_id',
   ]),
   caption('Gambar 4.1 — Relasi antar tabel'),
+  p('Satu tabel keenam, refresh_tokens, ditambahkan jauh kemudian pada Bab 12 dan tidak digambarkan di sini. Bab ini sengaja dibiarkan menggambarkan rancangan sebagaimana ia disepakati pada awalnya, supaya jelas mana yang dirancang sejak semula dan mana yang muncul dari masukan tinjauan.'),
   p('Alurnya dibaca seperti ini: seorang pengguna memiliki beberapa role, dan setiap role memiliki beberapa permission. Untuk mengetahui apakah seseorang boleh melakukan sesuatu, sistem menelusuri rantai tersebut dari ujung ke ujung.'),
 
   h2('4.2 Lima Keputusan Desain'),

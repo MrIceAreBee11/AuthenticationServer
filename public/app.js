@@ -5,9 +5,11 @@
 
 const API = '/api/v1';
 const TOKEN_KEY = 'auth-console-token';
+const REFRESH_KEY = 'auth-console-refresh';
 
 const state = {
   token: null,
+  refreshToken: null,
   me: null,
   permissions: [],
   roles: [],
@@ -24,6 +26,7 @@ const ENDPOINTS = [
   ['GET', '/health/ready', 'Readiness — dependensi siap'],
   ['POST', '/auth/login', 'Masuk dan memperoleh token'],
   ['GET', '/auth/me', 'Identitas pemilik token'],
+  ['POST', '/auth/refresh', 'Menukar refresh token dengan yang baru'],
   ['POST', '/auth/logout', 'Mencabut token aktif'],
   ['GET', '/auth/permissions', 'Izin milik sendiri'],
   ['POST', '/auth/forgot-password', 'Meminta tautan reset'],
@@ -124,14 +127,46 @@ const normalizePath = (path) => path
  * Panel ini dipakai saat demo di depan orang lain, jadi isian rahasia
  * tidak boleh ikut tampil di layar meski request-nya sah.
  */
+/** Disembunyikan sepenuhnya — tidak ada gunanya diperlihatkan sebagian. */
 const REDACTED_KEYS = new Set(['password', 'newPassword', 'passwordHash']);
 
-const redactSecrets = (body) => {
-  if (!body || typeof body !== 'object') return body;
+/**
+ * Ditampilkan sebagian saja.
+ *
+ * Ketiganya adalah kredensial yang masih berlaku, jadi memperlihatkannya utuh
+ * di panel yang sedang dipertunjukkan lewat layar bersama sama saja dengan
+ * membagikannya. Tetapi menyembunyikannya sepenuhnya juga menghilangkan hal
+ * yang justru paling berguna dilihat: bahwa nilainya BERUBAH setiap kali
+ * refresh token dipakai. Potongan awalnya cukup untuk membuktikan itu.
+ */
+const TRUNCATED_KEYS = new Set(['token', 'refreshToken', 'resetToken']);
+
+const KEPT_CHARS = 10;
+
+const maskValue = (key, value) => {
+  if (REDACTED_KEYS.has(key)) return '••••••••  (disembunyikan)';
+
+  if (TRUNCATED_KEYS.has(key) && typeof value === 'string' && value.length > KEPT_CHARS) {
+    return `${value.slice(0, KEPT_CHARS)}…  (${value.length} karakter, dipotong)`;
+  }
+
+  return value;
+};
+
+/**
+ * Berjalan rekursif karena token berada di dalam objek data pada response,
+ * bukan di tingkat teratas seperti pada request body.
+ */
+const redactSecrets = (value) => {
+  if (Array.isArray(value)) return value.map((item) => redactSecrets(item));
+
+  if (!value || typeof value !== 'object') return value;
 
   return Object.fromEntries(
-    Object.entries(body).map(([key, value]) =>
-      [key, REDACTED_KEYS.has(key) ? '••••••••  (disembunyikan)' : value])
+    Object.entries(value).map(([key, item]) => [
+      key,
+      maskValue(key, typeof item === 'object' && item !== null ? redactSecrets(item) : item),
+    ])
   );
 };
 
@@ -141,7 +176,7 @@ const pushLog = (entry) => {
   renderLogs();
 };
 
-async function api(path, { method = 'GET', body, raw = false } = {}) {
+async function api(path, { method = 'GET', body, raw = false, retried = false } = {}) {
   const started = performance.now();
   const headers = {};
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -173,12 +208,25 @@ async function api(path, { method = 'GET', body, raw = false } = {}) {
     status: failure ? 0 : response.status,
     ms,
     request: raw ? '[FormData — berkas biner]' : redactSecrets(body) ?? null,
-    response: failure ? { error: failure.message } : payload,
+    response: failure ? { error: failure.message } : redactSecrets(payload),
   });
 
   if (failure) throw new Error('Tidak dapat menghubungi server');
 
   if (response.status === 401 && state.token && !path.includes('/auth/login')) {
+    // Access token berumur 15 menit, jadi 401 adalah kejadian normal, bukan
+    // tanda sesi berakhir. Yang dilakukan: tukar refresh token dengan yang
+    // baru, lalu ulangi permintaan aslinya satu kali.
+    //
+    // Pengecualian /auth/refresh mencegah rekursi tanpa ujung, dan penanda
+    // retried memastikan pengulangannya hanya sekali — kalau permintaan yang
+    // sudah diperbarui masih 401, masalahnya bukan lagi soal umur token.
+    const bolehDicoba = !retried && !path.includes('/auth/refresh');
+
+    if (bolehDicoba && (await refreshSession())) {
+      return api(path, { method, body, raw, retried: true });
+    }
+
     handleExpiredSession(payload?.message);
     throw new Error(payload?.message || 'Sesi berakhir');
   }
@@ -237,9 +285,58 @@ function renderLogs() {
 /* ============================================================
    Sesi
    ============================================================ */
-function handleExpiredSession(message) {
+function simpanSesi({ token, refreshToken }) {
+  state.token = token;
+  state.refreshToken = refreshToken ?? state.refreshToken;
+
+  localStorage.setItem(TOKEN_KEY, state.token);
+
+  if (state.refreshToken) localStorage.setItem(REFRESH_KEY, state.refreshToken);
+}
+
+function hapusSesi() {
   state.token = null;
+  state.refreshToken = null;
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+/**
+ * Satu permintaan perbarui yang dibagi bersama seluruh pemanggil.
+ *
+ * Ini bukan soal kerapian, melainkan kebutuhan. Server merotasi refresh token
+ * setiap kali dipakai. Kalau dua permintaan sama-sama kena 401 lalu
+ * masing-masing memanggil /auth/refresh, yang kedua mengirim token yang sudah
+ * dirotasi oleh yang pertama — dan server membaca itu sebagai pemakaian ulang,
+ * lalu mencabut SELURUH rangkaian sesi. Pengaman terhadap pencurian token
+ * justru berbalik mengunci pemakainya sendiri.
+ */
+let refreshInFlight = null;
+
+function refreshSession() {
+  if (!state.refreshToken) return Promise.resolve(false);
+
+  if (!refreshInFlight) {
+    refreshInFlight = api('/auth/refresh', {
+      method: 'POST',
+      body: { refreshToken: state.refreshToken },
+    })
+      .then((result) => {
+        simpanSesi(result.data);
+
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+
+  return refreshInFlight;
+}
+
+function handleExpiredSession(message) {
+  hapusSesi();
   $('#app-screen').hidden = true;
   $('#login-screen').hidden = false;
   toast(message || 'Sesi berakhir, silakan masuk kembali', 'err');
@@ -921,8 +1018,7 @@ $('#login-form').addEventListener('submit', async (event) => {
       method: 'POST',
       body: { email: $('#login-email').value.trim(), password: $('#login-password').value },
     });
-    state.token = result.data.token;
-    localStorage.setItem(TOKEN_KEY, state.token);
+    simpanSesi(result.data);
     $('#login-password').value = '';
     await bootSession();
     toast(`Selamat datang, ${state.me.fullName}`);
@@ -947,12 +1043,45 @@ $('#open-forgot').addEventListener('click', () => {
 });
 
 $('#btn-logout').addEventListener('click', async () => {
-  try { await api('/auth/logout', { method: 'POST' }); toast('Token dicabut — logout berhasil'); }
-  catch (error) { toast(error.message, 'err'); }
-  state.token = null;
-  localStorage.removeItem(TOKEN_KEY);
+  // Refresh token ikut dikirim supaya rangkaian sesinya benar-benar dicabut.
+  // Tanpa itu, hanya access token yang mati sementara sesinya masih dapat
+  // diperbarui sampai refresh token-nya kedaluwarsa sendiri.
+  try {
+    await api('/auth/logout', {
+      method: 'POST',
+      body: { refreshToken: state.refreshToken ?? undefined },
+    });
+    toast('Access token dan refresh token dicabut — logout berhasil');
+  } catch (error) {
+    toast(error.message, 'err');
+  }
+
+  hapusSesi();
   $('#app-screen').hidden = true;
   $('#login-screen').hidden = false;
+});
+
+// Tombol perbarui manual. Fungsinya untuk peragaan: rotasinya terlihat
+// langsung di panel inspector, termasuk refresh token lama yang berganti.
+$('#btn-refresh-token').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+
+  try {
+    const sebelum = state.refreshToken;
+
+    if (await refreshSession()) {
+      toast(
+        state.refreshToken === sebelum
+          ? 'Token diperbarui'
+          : 'Token diperbarui — refresh token ikut dirotasi'
+      );
+    } else {
+      toast('Gagal memperbarui token. Silakan masuk kembali.', 'err');
+    }
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $$('.nav-item').forEach((button) => button.addEventListener('click', () => goto(button.dataset.page)));
@@ -1197,14 +1326,20 @@ $('#rp-form').addEventListener('submit', async (event) => {
    ============================================================ */
 (async () => {
   const saved = localStorage.getItem(TOKEN_KEY);
+  const savedRefresh = localStorage.getItem(REFRESH_KEY);
+
   if (!saved) return;
 
   state.token = saved;
+  state.refreshToken = savedRefresh;
+
   try {
+    // Kalau access token yang tersimpan sudah kedaluwarsa, api() akan
+    // memperbaruinya sendiri lewat refresh token — jadi menutup lalu membuka
+    // kembali tab konsol tidak memaksa login ulang.
     await bootSession();
   } catch {
-    state.token = null;
-    localStorage.removeItem(TOKEN_KEY);
+    hapusSesi();
     $('#app-screen').hidden = true;
     $('#login-screen').hidden = false;
   }

@@ -33,6 +33,20 @@ class AuthController {
     return successResponse(res, 200, 'Login berhasil', result);
   };
 
+  /**
+   * Sengaja tidak memakai middleware authenticate. Justru inilah gunanya:
+   * dipanggil ketika access token sudah kedaluwarsa, jadi mensyaratkan access
+   * token yang masih hidup membuat endpoint ini tidak ada artinya.
+   * Refresh token di dalam body yang menjadi bukti identitasnya.
+   */
+  refresh = async (req, res) => {
+    const { refreshToken } = req.body ?? {};
+
+    const result = await this.auth.refresh({ refreshToken });
+
+    return successResponse(res, 200, 'Token berhasil diperbarui', result);
+  };
+
   me = async (req, res) => {
     const user = await this.auth.getProfile(req.user.id);
 
@@ -40,9 +54,16 @@ class AuthController {
   };
 
   logout = async (req, res) => {
+    // refreshToken opsional. Kalau dikirim, rangkaian sesinya ikut dicabut
+    // sehingga perangkat itu benar-benar keluar; kalau tidak, hanya access
+    // token yang dicabut dan sesinya masih dapat diperbarui.
+    const { refreshToken } = req.body ?? {};
+
     await this.auth.logout({
       tokenId: req.token.id,
       expiresAt: req.token.expiresAt,
+      refreshToken,
+      userId: req.user.id,
     });
 
     return successResponse(res, 200, 'Logout berhasil');
