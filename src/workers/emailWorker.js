@@ -23,6 +23,7 @@ const nodemailer = require('nodemailer');
 
 const { config } = require('../config');
 const { MessageQueue } = require('../queue');
+const { Logger } = require('../utils/logger');
 const { QUEUES } = require('../constants/cacheKeys');
 const { SECONDS } = require('../constants/units');
 
@@ -41,18 +42,19 @@ const buildResetEmail = ({ fullName, resetUrl }, ttlSeconds) => {
 };
 
 class EmailWorker {
-  constructor({ queue, mailer, mail, resetTtlSeconds }) {
+  constructor({ queue, mailer, mail, resetTtlSeconds, logger }) {
     this.queue = queue;
     this.mailer = mailer;
     this.mail = mail;
     this.resetTtlSeconds = resetTtlSeconds;
+    this.logger = logger;
   }
 
   #parse(message, channel) {
     try {
       return JSON.parse(message.content.toString());
     } catch (error) {
-      console.error('[WORKER] pesan tidak dapat diparse, dibuang:', error.message);
+      this.logger.exception('pesan tidak dapat diparse, dibuang', error);
       channel.nack(message, false, false);
 
       return null;
@@ -82,38 +84,43 @@ class EmailWorker {
         ...buildResetEmail(payload, this.resetTtlSeconds),
       });
 
-      console.log(`[WORKER] email reset terkirim ke ${payload.to}`);
+      this.logger.info('email reset terkirim', { to: payload.to });
       channel.ack(message);
     } catch (error) {
-      console.error(`[WORKER] gagal mengirim ke ${payload.to}:`, error.message);
+      this.logger.exception('gagal mengirim email', error, { to: payload.to });
       channel.nack(message, false, false);
     }
   };
 
   async start() {
     await this.mailer.verify();
-    console.log('Koneksi SMTP berhasil');
+    this.logger.info('koneksi smtp berhasil');
 
     // prefetch 1: satu pesan sekaligus. Worker tidak boleh menarik seratus
     // pesan lalu memegangnya sementara SMTP-nya lambat.
     await this.queue.consume(QUEUES.PASSWORD_RESET_EMAIL, this.#handle, { prefetch: 1 });
 
-    console.log(`Worker siap, menunggu pesan di "${QUEUES.PASSWORD_RESET_EMAIL}"`);
+    this.logger.info('worker siap menunggu pesan', { queue: QUEUES.PASSWORD_RESET_EMAIL });
   }
 
   async shutdown(signal) {
-    console.log(`\n${signal} diterima, menutup worker...`);
+    this.logger.info('sinyal penutupan diterima', { signal });
 
     await this.queue.close().catch((error) => {
-      console.error('[WORKER] gagal menutup koneksi:', error.message);
+      this.logger.exception('gagal menutup koneksi antrean', error);
     });
 
     process.exit(0);
   }
 }
 
+const logger = new Logger({
+  level: config.app.logLevel,
+  bindings: { env: config.app.env, component: 'worker' },
+});
+
 const worker = new EmailWorker({
-  queue: new MessageQueue(config.queue.url),
+  queue: new MessageQueue(config.queue.url, logger),
   mailer: nodemailer.createTransport({
     host: config.mail.host,
     port: config.mail.port,
@@ -122,13 +129,14 @@ const worker = new EmailWorker({
   }),
   mail: config.mail,
   resetTtlSeconds: config.password.resetTtlSeconds,
+  logger,
 });
 
 process.on('SIGINT', () => worker.shutdown('SIGINT'));
 process.on('SIGTERM', () => worker.shutdown('SIGTERM'));
 
 worker.start().catch((error) => {
-  console.error('Worker gagal dijalankan:', error.message);
+  logger.exception('worker gagal dijalankan', error);
   process.exit(1);
 });
 

@@ -29,7 +29,8 @@ const { BEARER_PREFIX } = require('../constants/cacheKeys');
 const { ERROR_CODES } = require('../constants/errorCodes');
 
 class AuthenticateMiddleware {
-  constructor({ users, denylist, tokens }) {
+  constructor({ users, denylist, tokens, logger }) {
+    this.logger = logger;
     this.users = users;
     this.denylist = denylist;
     this.tokens = tokens;
@@ -70,7 +71,7 @@ class AuthenticateMiddleware {
     try {
       isRevoked = await this.denylist.isRevoked(tokenId);
     } catch (error) {
-      console.error('[REDIS] gagal memeriksa denylist:', error.message);
+      this.logger.exception('gagal memeriksa daftar cabut token', error);
 
       // Redis adalah satu-satunya sumber kebenaran untuk "token ini sudah
       // dicabut atau belum". Kalau tidak terbaca, kita tidak tahu — dan

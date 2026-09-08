@@ -51,6 +51,7 @@ const config = Object.freeze({
     trustProxy: raw.TRUST_PROXY,
     shutdownTimeoutMs: raw.SHUTDOWN_TIMEOUT_MS,
     jsonBodyLimit: raw.JSON_BODY_LIMIT,
+    logLevel: raw.LOG_LEVEL,
     isDevelopment: raw.NODE_ENV === 'development',
     isProduction: raw.NODE_ENV === 'production',
   }),
@@ -83,6 +84,8 @@ const config = Object.freeze({
     accessTtlSeconds: raw.JWT_EXPIRES_IN,
     refreshTtlSeconds: raw.REFRESH_TOKEN_EXPIRES_IN,
     opaqueBytes: raw.OPAQUE_TOKEN_BYTES,
+    issuer: raw.JWT_ISSUER,
+    audience: raw.JWT_AUDIENCE,
   }),
 
   password: Object.freeze({

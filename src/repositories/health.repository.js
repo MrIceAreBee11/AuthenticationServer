@@ -11,7 +11,8 @@
  * juga mati.
  */
 class HealthRepository {
-  constructor({ database, cache }) {
+  constructor({ database, cache, logger }) {
+    this.logger = logger;
     this.database = database;
     this.cache = cache;
   }
@@ -22,7 +23,7 @@ class HealthRepository {
 
       return true;
     } catch (error) {
-      console.error('[READINESS] database:', error.message);
+      this.logger.exception('readiness: database tidak menjawab', error);
 
       return false;
     }
@@ -34,7 +35,7 @@ class HealthRepository {
 
       return true;
     } catch (error) {
-      console.error('[READINESS] redis:', error.message);
+      this.logger.exception('readiness: redis tidak menjawab', error);
 
       return false;
     }

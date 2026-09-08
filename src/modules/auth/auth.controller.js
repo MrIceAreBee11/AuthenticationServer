@@ -18,7 +18,8 @@ const { QUEUES } = require('../../constants/cacheKeys');
  * ketika method-nya diserahkan langsung ke router sebagai handler.
  */
 class AuthController {
-  constructor({ auth, passwords, permissions, queue, appUrl }) {
+  constructor({ auth, passwords, permissions, queue, appUrl, logger }) {
+    this.logger = logger;
     this.auth = auth;
     this.passwords = passwords;
     this.permissions = permissions;
@@ -110,7 +111,7 @@ class AuthController {
         // Kegagalan antrean TIDAK boleh mengubah bentuk response. Kalau ia
         // menjadi 500, maka email terdaftar dijawab 500 sementara yang tidak
         // terdaftar dijawab 200 — dan perbedaan itu membocorkan keberadaannya.
-        console.error('[QUEUE] gagal mempublikasikan email reset:', error.message);
+        this.logger.exception('gagal menitipkan email reset ke antrean', error);
       }
     }
 

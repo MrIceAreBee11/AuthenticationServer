@@ -27,7 +27,8 @@ const EXTENSION_BY_MIME = {
 };
 
 class ProfileService {
-  constructor({ users, storage, avatar }) {
+  constructor({ users, storage, avatar, logger }) {
+    this.logger = logger;
     this.users = users;
     this.storage = storage;
     this.avatar = avatar;
@@ -57,7 +58,7 @@ class ProfileService {
     try {
       return await this.storage.getPresignedUrl(avatarKey, this.avatar.urlTtlSeconds);
     } catch (error) {
-      console.error('[STORAGE] gagal membuat presigned URL:', error.message);
+      this.logger.exception('gagal membuat alamat sementara avatar', error);
 
       return null;
     }
@@ -67,7 +68,7 @@ class ProfileService {
     try {
       await this.storage.removeObject(objectKey);
     } catch (error) {
-      console.error(`[STORAGE] gagal menghapus ${context}:`, error.message);
+      this.logger.exception('gagal menghapus berkas', error, { context });
     }
   }
 

@@ -26,8 +26,9 @@ const { errorResponse } = require('../utils/response');
 const { ERROR_CODES } = require('../constants/errorCodes');
 
 class ErrorHandler {
-  constructor({ exposeStack }) {
+  constructor({ exposeStack, logger }) {
     this.exposeStack = exposeStack;
+    this.logger = logger;
   }
 
   handle = (err, req, res, next) => {
@@ -36,7 +37,7 @@ class ErrorHandler {
     }
 
     if (err instanceof ConnectionError) {
-      console.error('[DATABASE] koneksi bermasalah:', err.message);
+      this.logger.exception('koneksi database bermasalah', err);
 
       // 503 dan bukan 500: masalahnya bukan pada permintaannya, dan klien
       // boleh mencoba lagi nanti.
@@ -63,7 +64,13 @@ class ErrorHandler {
       });
     }
 
-    console.error('[UNEXPECTED ERROR]', err);
+    // Hanya error TAK TERDUGA yang dicatat. Penolakan yang disengaja
+    // (AppError) sudah tercatat sebagai status 4xx oleh requestLogger, dan
+    // mencatatnya dua kali membuat log penuh kejadian normal.
+    this.logger.exception('error tak tertangani', err, {
+      method: req.method,
+      path: req.originalUrl,
+    });
 
     return errorResponse(res, 500, 'Terjadi kesalahan pada server', {
       code: ERROR_CODES.INTERNAL_ERROR,

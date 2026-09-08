@@ -26,7 +26,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class UsersService {
-  constructor({ users, roles, permissions, storage, policy, paging, database }) {
+  constructor({ users, roles, permissions, storage, policy, paging, database, logger }) {
+    this.logger = logger;
     this.users = users;
     this.roles = roles;
     this.permissions = permissions;
@@ -253,10 +254,9 @@ class UsersService {
       try {
         await this.storage.removeObject(avatarKey);
       } catch (error) {
-        console.error(
-          '[STORAGE] gagal menghapus avatar user terhapus:',
-          error.message
-        );
+        this.logger.exception('gagal menghapus avatar user terhapus', error, {
+          userId,
+        });
       }
     }
   }

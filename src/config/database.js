@@ -26,6 +26,9 @@ const base = {
 };
 
 module.exports = {
+  // Satu-satunya console.* di src/ selain kegagalan config, dan sengaja:
+  // berkas ini dibaca sequelize-cli sebagai proses terpisah yang tidak punya
+  // container, jadi tidak ada logger untuk disuntikkan. Hanya aktif di development.
   development: { ...base, logging: (sql) => console.log(`[SQL] ${sql}`) },
 
   // Nama database pengujian diturunkan dari nama utama, bukan variabel

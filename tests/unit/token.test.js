@@ -10,8 +10,18 @@ const ID_PENGGUNA = '11111111-1111-4111-8111-111111111111';
 // Kunci dan masa berlaku masuk lewat constructor, bukan dari environment.
 // Itulah yang membuat berkas ini dapat menguji beberapa konfigurasi sekaligus
 // dalam satu proses — sebelumnya tidak mungkin.
+const ISSUER = 'auth-service-uji';
+const AUDIENCE = 'auth-service-uji-api';
+
 const buildService = (overrides = {}) =>
-  new TokenService({ secret: SECRET, accessTtlSeconds: 900, opaqueBytes: 32, ...overrides });
+  new TokenService({
+    secret: SECRET,
+    accessTtlSeconds: 900,
+    opaqueBytes: 32,
+    issuer: ISSUER,
+    audience: AUDIENCE,
+    ...overrides,
+  });
 
 test('TokenService.signAccessToken', async (t) => {
   await t.test('token memuat pemilik, penanda unik, dan masa berlaku', async () => {
@@ -54,7 +64,7 @@ test('TokenService.signAccessToken', async (t) => {
 
     const isi = JSON.parse(Buffer.from(bagianIsi, 'base64url').toString('utf8'));
 
-    assert.deepEqual(Object.keys(isi).sort(), ['exp', 'iat', 'jti', 'sub']);
+    assert.deepEqual(Object.keys(isi).sort(), ['aud', 'exp', 'iat', 'iss', 'jti', 'sub']);
   });
 });
 
@@ -78,9 +88,50 @@ test('TokenService.verifyAccessToken', async (t) => {
     const tokenAsing = jwt.sign({ jti: 'palsu' }, 'kunci-lain-yang-panjangnya-cukup-32-karakter', {
       subject: ID_PENGGUNA,
       expiresIn: '1h',
+      issuer: ISSUER,
+      audience: AUDIENCE,
     });
 
     assert.throws(() => buildService().verifyAccessToken(tokenAsing), /invalid signature/);
+  });
+
+  await t.test('secret yang sama tetapi issuer berbeda DITOLAK', async () => {
+    // Skenario nyata: dua layanan berbagi satu secret. Tanpa memeriksa iss,
+    // token layanan sebelah lolos di sini apa adanya.
+    const tokenLayananLain = jwt.sign({ jti: 'x' }, SECRET, {
+      subject: ID_PENGGUNA,
+      expiresIn: '1h',
+      issuer: 'layanan-lain',
+      audience: AUDIENCE,
+    });
+
+    assert.throws(() => buildService().verifyAccessToken(tokenLayananLain), /jwt issuer/);
+  });
+
+  await t.test('secret yang sama tetapi audience berbeda DITOLAK', async () => {
+    // Sebaliknya: token milik layanan ini tidak boleh dipakai di tempat yang
+    // bukan tujuannya.
+    const tokenUntukPihakLain = jwt.sign({ jti: 'x' }, SECRET, {
+      subject: ID_PENGGUNA,
+      expiresIn: '1h',
+      issuer: ISSUER,
+      audience: 'aplikasi-lain',
+    });
+
+    assert.throws(() => buildService().verifyAccessToken(tokenUntukPihakLain), /jwt audience/);
+  });
+
+  await t.test('token tanpa iss dan aud sama sekali ditolak', async () => {
+    // Token yang terbit SEBELUM klaim ini ditambahkan. Konsekuensinya
+    // disengaja: seluruh access token lama mati, tetapi refresh token tidak
+    // terpengaruh karena ia bukan JWT — jadi klien memperbarui sendiri dan
+    // penggunanya tidak perlu login ulang.
+    const tokenLama = jwt.sign({ jti: 'x' }, SECRET, {
+      subject: ID_PENGGUNA,
+      expiresIn: '1h',
+    });
+
+    assert.throws(() => buildService().verifyAccessToken(tokenLama));
   });
 
   await t.test('token yang sudah kedaluwarsa ditolak dengan nama error yang khas', async () => {
@@ -89,6 +140,8 @@ test('TokenService.verifyAccessToken', async (t) => {
     const tokenBasi = jwt.sign({ jti: 'basi' }, SECRET, {
       subject: ID_PENGGUNA,
       expiresIn: '-1s',
+      issuer: ISSUER,
+      audience: AUDIENCE,
     });
 
     assert.throws(() => buildService().verifyAccessToken(tokenBasi), {

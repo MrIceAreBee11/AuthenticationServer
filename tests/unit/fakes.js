@@ -261,6 +261,8 @@ const testTokenService = (overrides = {}) =>
     secret: 'kunci-uji-yang-panjangnya-lebih-dari-32-karakter',
     accessTtlSeconds: 900,
     opaqueBytes: 32,
+    issuer: 'auth-service-uji',
+    audience: 'auth-service-uji-api',
     ...overrides,
   });
 
@@ -280,6 +282,33 @@ const fakeDatabase = ({ log = createLog() } = {}) => ({
   ),
   query: logged(log, 'database.query', async () => []),
 });
+
+/**
+ * Logger palsu yang merekam, bukan mencetak.
+ *
+ * Menggantikan seluruh pembungkam console. Sebelumnya jalur kegagalan diuji
+ * dengan membungkam console.error supaya keluaran tes tidak berisik — yang
+ * berarti tidak ada satu pun assertion atas APA yang dicatat. Sekarang isinya
+ * dapat diperiksa.
+ */
+const fakeLogger = () => {
+  const entries = [];
+
+  const record = (level) => (message, fieldsOrError, fields) =>
+    entries.push({ level, message, fieldsOrError, fields });
+
+  return {
+    entries,
+    error: record('error'),
+    warn: record('warn'),
+    info: record('info'),
+    debug: record('debug'),
+    exception: record('exception'),
+    child: () => fakeLogger(),
+    /** Baris yang levelnya cocok; dipakai assertion. */
+    at: (level) => entries.filter((entry) => entry.level === level),
+  };
+};
 
 /** Objek res palsu yang merekam status dan isi jawaban. */
 const fakeResponse = () => {
@@ -308,6 +337,7 @@ const silenceErrorLog = () => mock.method(console, 'error', () => {});
 const silenceInfoLog = () => mock.method(console, 'log', () => {});
 
 module.exports = {
+  fakeLogger,
   testTokenService,
   testPasswordPolicy,
   fakeDatabase,

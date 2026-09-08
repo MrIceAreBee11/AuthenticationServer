@@ -48,8 +48,10 @@ class AuthService {
     refreshTokens,
     tokens,
     ttlSeconds,
+    logger,
     dummyPasswordHash = DUMMY_PASSWORD_HASH,
   }) {
+    this.logger = logger;
     this.users = users;
     this.denylist = denylist;
     this.refreshTokens = refreshTokens;
@@ -149,9 +151,12 @@ class AuthService {
       // Rangkaian lain milik pengguna yang sama tidak tersentuh.
       await this.refreshTokens.revokeFamily(stored.familyId);
 
-      console.warn(
-        `[AUTH] refresh token dipakai ulang, rangkaian sesi dicabut (user ${stored.userId})`
-      );
+      // Kejadian keamanan, bukan sekadar kegagalan. Dicatat sebagai warn
+      // supaya dapat difilter dan diberi peringatan tersendiri.
+      this.logger.warn('refresh token dipakai ulang, rangkaian sesi dicabut', {
+        userId: stored.userId,
+        familyId: stored.familyId,
+      });
 
       throw new UnauthorizedError(
         PESAN_REFRESH_TIDAK_VALID,

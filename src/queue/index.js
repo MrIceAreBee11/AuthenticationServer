@@ -25,8 +25,9 @@ class MessageQueue {
 
   #channel = null;
 
-  constructor(url) {
+  constructor(url, logger) {
     this.url = url;
+    this.logger = logger;
   }
 
   async connect() {
@@ -37,14 +38,14 @@ class MessageQueue {
     this.#connection = await amqp.connect(this.url);
 
     this.#connection.on('error', (error) => {
-      console.error('[RABBITMQ ERROR]', error.message);
+      this.logger.error('rabbitmq error', { reason: error.message });
     });
 
     // Referensinya dibuang supaya connect() berikutnya benar-benar menyambung
     // ulang. Tanpa ini, channel yang sudah mati tetap dipakai dan setiap
     // penerbitan gagal tanpa pernah mencoba memulihkan diri.
     this.#connection.on('close', () => {
-      console.error('[RABBITMQ] koneksi tertutup');
+      this.logger.warn('koneksi rabbitmq tertutup');
       this.#connection = null;
       this.#channel = null;
     });

@@ -72,6 +72,7 @@ const envSchema = z
     TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
     SHUTDOWN_TIMEOUT_MS: count(10 * MS.SECOND),
     JSON_BODY_LIMIT: z.string().default('10kb'),
+    LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
     // ---------- PostgreSQL ----------
     DB_HOST: z.string().min(1),
@@ -99,6 +100,13 @@ const envSchema = z
     JWT_EXPIRES_IN: duration('JWT_EXPIRES_IN'),
     REFRESH_TOKEN_EXPIRES_IN: duration('REFRESH_TOKEN_EXPIRES_IN'),
     OPAQUE_TOKEN_BYTES: z.coerce.number().int().min(32).default(32),
+
+    // Penanda penerbit dan penerima token. Tanpa keduanya, token yang
+    // diterbitkan layanan LAIN yang memakai secret yang sama akan diterima
+    // apa adanya — dan sebaliknya, token milik layanan ini dapat dipakai di
+    // tempat yang bukan tujuannya.
+    JWT_ISSUER: z.string().min(1).default('auth-service'),
+    JWT_AUDIENCE: z.string().min(1).default('auth-service-api'),
 
     // ---------- Kebijakan password ----------
     // Lantai dipasang di skema, bukan diserahkan pada niat baik operator:

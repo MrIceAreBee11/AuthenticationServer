@@ -1,22 +1,20 @@
 /**
- * BERKAS INI: titik masuk proses API — merakit container, membuktikan
- * dependensi hidup, membuka port, lalu menutup semuanya dengan rapi.
+ * Entry point untuk proses API: menyiapkan container, memastikan dependency
+ * siap, membuka port, lalu menangani shutdown saat proses dihentikan.
  *
- * KENAPA TERPISAH DARI app.js: satu-satunya berkas yang boleh membuka port dan
- * mendaftarkan penanganan sinyal. Pengujian memakai app.js tanpa ikut
- * mewarisi keduanya.
+ * app.js hanya menyiapkan Express, sedangkan file ini yang menangani lifecycle
+ * proses seperti listen dan signal handler. Dengan pemisahan ini, app.js tetap
+ * bisa dipakai untuk testing tanpa ikut menjalankan server.
  *
- * KENAPA MEMERIKSA DEPENDENSI SEBELUM listen: aplikasi yang menerima
- * permintaan sementara basis datanya mati hanya akan membalas 500 satu per
- * satu. Gagal sekarang, dengan pesan jelas, jauh lebih murah daripada gagal
- * pada permintaan pertama pengguna.
+ * Dependency dicek sebelum listen supaya aplikasi tidak mulai menerima request
+ * kalau database atau Redis belum siap.
  *
- * KENAPA KATALOG IZIN DIVERIFIKASI DI SINI: seluruh route sudah termuat pada
- * titik ini, jadi daftar izin yang benar-benar dipakai kode sudah lengkap.
- * Izin yang dipakai route tetapi tidak ada barisnya di basis data membuat
- * endpoint-nya menjawab 403 untuk SEMUA orang — termasuk superadmin — tanpa
- * satu pun error di log. Lebih baik aplikasi menolak menyala.
+ * Katalog permission juga diverifikasi setelah semua route terpasang. Kalau ada
+ * permission yang dipakai route tetapi belum tersedia di database, lebih baik
+ * aplikasi gagal start daripada endpoint diam-diam mengembalikan 403 untuk semua
+ * user.
  */
+
 const { config } = require('./config');
 const { Container } = require('./container');
 const { createApp } = require('./app');
@@ -28,37 +26,40 @@ class ApiServer {
 
   constructor() {
     this.container = new Container(config);
+    this.logger = this.container.logger.child({ component: 'server' });
     this.app = createApp(this.container, config);
   }
 
   async start() {
     try {
       await this.container.connect();
-      console.log('Koneksi database dan Redis berhasil');
+      this.logger.info('koneksi database dan redis berhasil');
 
       const catalog = await this.container.permissionService.verifyCatalog(
         this.container.authorize.requiredPermissions
       );
 
-      console.log(
-        `Katalog izin terverifikasi (${catalog.required} dipakai route, ${catalog.available} tersedia di database)`
-      );
+      this.logger.info('katalog izin terverifikasi', {
+        dipakaiRoute: catalog.required,
+        tersediaDiDatabase: catalog.available,
+      });
 
       this.#server = this.app.listen(config.app.port, () => {
-        console.log(
-          `Server berjalan di http://localhost:${config.app.port} [${config.app.env}]`
-        );
+        this.logger.info('server berjalan', {
+          port: config.app.port,
+          env: config.app.env,
+        });
       });
     } catch (error) {
-      console.error('Gagal memulai server:', error.message);
+      this.logger.exception('gagal memulai server', error);
       process.exit(1);
     }
   }
 
   /**
-   * Urutannya disengaja: berhenti menerima permintaan baru DULU, lalu tutup
-   * koneksi. Kalau dibalik, permintaan yang sedang berjalan kehilangan basis
-   * data di tengah jalan dan pengguna menerima 500 pada saat penutupan.
+   * Tutup server lebih dulu agar request baru tidak masuk, baru setelah itu
+   * tutup koneksi ke resource lain. Request yang sedang berjalan tetap punya
+   * kesempatan menyelesaikan prosesnya.
    */
   async shutdown(signal) {
     if (this.#shuttingDown) {
@@ -66,13 +67,12 @@ class ApiServer {
     }
 
     this.#shuttingDown = true;
-    console.log(`\n${signal} diterima, menutup server...`);
+    this.logger.info('sinyal penutupan diterima', { signal });
 
-    // Jaring terakhir: kalau ada koneksi yang menolak tertutup, proses tetap
-    // keluar. unref() supaya timer ini sendiri tidak menahan proses tetap
-    // hidup ketika penutupannya justru berhasil.
+    // Jaring terakhir kalau ada koneksi yang menolak tertutup. unref() supaya
+    // timer ini sendiri tidak menahan proses tetap hidup saat penutupan sukses.
     const forceExit = setTimeout(() => {
-      console.error('Shutdown melewati batas waktu, keluar paksa');
+      this.logger.error('shutdown melewati batas waktu, keluar paksa');
       process.exit(1);
     }, config.app.shutdownTimeoutMs);
 
@@ -81,20 +81,44 @@ class ApiServer {
     try {
       if (this.#server) {
         await new Promise((resolve) => this.#server.close(resolve));
-        console.log('Server berhenti menerima request baru');
+        this.logger.info('server berhenti menerima request baru');
       }
 
       await this.container.close();
-      console.log('Semua koneksi ditutup');
+      this.logger.info('semua koneksi ditutup');
       process.exit(0);
     } catch (error) {
-      console.error('Gagal menutup dengan rapi:', error.message);
+      this.logger.exception('gagal menutup dengan rapi', error);
       process.exit(1);
     }
+  }
+
+  /**
+   * Promise rejection yang tak tertangani dan exception yang lolos berarti
+   * state proses sudah tidak dapat dipercaya. Node sendiri akan mematikannya,
+   * tapi tanpa handler ini kejadiannya tidak tercatat — dan penyebab restart
+   * jadi tidak diketahui. Setelah dicatat, prosesnya memang dimatikan:
+   * melanjutkan dari state yang rusak lebih berbahaya daripada restart.
+   */
+  registerCrashHandlers() {
+    process.on('unhandledRejection', (reason) => {
+      this.logger.exception(
+        'promise rejection tak tertangani',
+        reason instanceof Error ? reason : new Error(String(reason))
+      );
+      this.shutdown('unhandledRejection');
+    });
+
+    process.on('uncaughtException', (error) => {
+      this.logger.exception('exception tak tertangani', error);
+      this.shutdown('uncaughtException');
+    });
   }
 }
 
 const server = new ApiServer();
+
+server.registerCrashHandlers();
 
 process.on('SIGINT', () => server.shutdown('SIGINT'));
 process.on('SIGTERM', () => server.shutdown('SIGTERM'));

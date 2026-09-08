@@ -10,6 +10,7 @@ const {
   fakeDenylistRepository,
   fakeRefreshTokenRepository,
   testTokenService,
+  fakeLogger,
 } = require('./fakes');
 
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -26,6 +27,7 @@ const buildService = ({ user = null } = {}) => {
       refreshTokens,
       tokens: testTokenService(),
       ttlSeconds: REFRESH_TTL_SECONDS,
+      logger: fakeLogger(),
     }),
     users,
     denylist,

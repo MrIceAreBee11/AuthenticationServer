@@ -8,8 +8,7 @@ const {
   fakeUserRepository,
   fakePermissionRepository,
   fakeCache,
-  silenceErrorLog,
-  silenceInfoLog,
+  fakeLogger,
 } = require('./fakes');
 
 const KUNCI_VERSI = 'permissions:version';
@@ -20,11 +19,20 @@ const buildService = ({ user = null, names = [], cache = fakeCache() } = {}) => 
   const users = fakeUserRepository({ user });
   const permissions = fakePermissionRepository({ names });
 
+  const logger = fakeLogger();
+
   return {
-    service: new PermissionService({ users, permissions, cache, ttlSeconds: CACHE_TTL }),
+    service: new PermissionService({
+      users,
+      permissions,
+      cache,
+      ttlSeconds: CACHE_TTL,
+      logger,
+    }),
     users,
     permissions,
     cache,
+    logger,
   };
 };
 
@@ -93,10 +101,7 @@ test('PermissionService.getUserPermissions', async (t) => {
     assert.deepEqual(await service.getUserPermissions('tidak-ada'), []);
   });
 
-  await t.test('cache tidak terbaca tetap dijawab dari database', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('cache tidak terbaca tetap dijawab dari database', async () => {
     // Redis di sini hanya salinan cepat; sumber kebenarannya PostgreSQL yang
     // masih hidup. Jadi kegagalan Redis dilewati, bukan menjatuhkan permintaan.
     const cache = fakeCache({
@@ -112,10 +117,7 @@ test('PermissionService.getUserPermissions', async (t) => {
     assert.equal(users.findWithRolePermissions.mock.callCount(), 1);
   });
 
-  await t.test('versi cache tidak terbaca membuat cache dilewati seluruhnya', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('versi cache tidak terbaca membuat cache dilewati seluruhnya', async () => {
     const cache = fakeCache({ fail: (operasi) => operasi === 'get' });
     const { service, users } = buildService({
       cache,
@@ -127,10 +129,7 @@ test('PermissionService.getUserPermissions', async (t) => {
     assert.equal(kunciPengguna(cache).length, 0, 'tanpa versi, kunci tidak dapat dibentuk');
   });
 
-  await t.test('gagal menyimpan cache tidak menjatuhkan permintaan', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('gagal menyimpan cache tidak menjatuhkan permintaan', async () => {
     const cache = fakeCache({
       initial: { [KUNCI_VERSI]: '1' },
       fail: (operasi, kunci) => operasi === 'set' && kunci.startsWith(AWALAN_KUNCI),
@@ -145,10 +144,7 @@ test('PermissionService.getUserPermissions', async (t) => {
 });
 
 test('PermissionService.bumpVersion', async (t) => {
-  await t.test('menaikkan versi membuat cache lama tidak terjangkau, bukan menghapusnya', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceInfoLog();
-
+  await t.test('menaikkan versi membuat cache lama tidak terjangkau, bukan menghapusnya', async () => {
     const { service, cache } = buildService({
       user: fakeUserWithPermissions([['users.read']]),
     });
@@ -167,10 +163,7 @@ test('PermissionService.bumpVersion', async (t) => {
     assert.ok(kunci.includes(`${AWALAN_KUNCI}v2:u1`));
   });
 
-  await t.test('Redis mati membuatnya mengembalikan null, bukan melempar', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('Redis mati membuatnya mengembalikan null, bukan melempar', async () => {
     const cache = fakeCache({ fail: (operasi) => operasi === 'incr' });
     const { service } = buildService({ cache });
 

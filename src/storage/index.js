@@ -21,7 +21,8 @@ const Minio = require('minio');
 class ObjectStorage {
   #bucketReady = false;
 
-  constructor(settings) {
+  constructor(settings, logger) {
+    this.logger = logger;
     this.bucket = settings.bucket;
 
     this.client = new Minio.Client({
@@ -45,7 +46,7 @@ class ObjectStorage {
 
     if (!(await this.client.bucketExists(this.bucket))) {
       await this.client.makeBucket(this.bucket);
-      console.log(`[MINIO] bucket "${this.bucket}" dibuat`);
+      this.logger.info('bucket dibuat', { bucket: this.bucket });
     }
 
     this.#bucketReady = true;

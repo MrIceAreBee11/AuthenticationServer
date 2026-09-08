@@ -28,10 +28,12 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 
 class TokenService {
-  constructor({ secret, accessTtlSeconds, opaqueBytes }) {
+  constructor({ secret, accessTtlSeconds, opaqueBytes, issuer, audience }) {
     this.secret = secret;
     this.accessTtlSeconds = accessTtlSeconds;
     this.opaqueBytes = opaqueBytes;
+    this.issuer = issuer;
+    this.audience = audience;
   }
 
   /**
@@ -44,13 +46,23 @@ class TokenService {
     const token = jwt.sign({ jti }, this.secret, {
       subject: userId,
       expiresIn: this.accessTtlSeconds,
+      issuer: this.issuer,
+      audience: this.audience,
     });
 
     return { token, jti };
   }
 
+  /**
+   * Tanda tangan saja tidak cukup. Tanpa memeriksa iss dan aud, token yang
+   * diterbitkan layanan lain dengan secret yang sama akan lolos — dan itu
+   * skenario nyata begitu satu secret dipakai lebih dari satu layanan.
+   */
   verifyAccessToken(token) {
-    return jwt.verify(token, this.secret);
+    return jwt.verify(token, this.secret, {
+      issuer: this.issuer,
+      audience: this.audience,
+    });
   }
 
   /**

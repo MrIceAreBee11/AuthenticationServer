@@ -20,7 +20,8 @@ const { createClient } = require('redis');
 class CacheClient {
   #connectPromise = null;
 
-  constructor(settings) {
+  constructor(settings, logger) {
+    this.logger = logger;
     this.readyTimeoutMs = settings.readyTimeoutMs;
 
     this.client = createClient({
@@ -39,7 +40,7 @@ class CacheClient {
     });
 
     this.client.on('error', (error) => {
-      console.error('[REDIS ERROR]', error.message || error.code || 'unknown');
+      this.logger.error('redis error', { reason: error.message || error.code || 'unknown' });
     });
   }
 

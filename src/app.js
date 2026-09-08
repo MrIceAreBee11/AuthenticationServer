@@ -1,18 +1,20 @@
-/**
- * Express app factory.
- *
- * Dipisah dari server.js agar mudah dites (e2e bisa binding ke ephemeral port
- * tanpa bentrok dengan running instance atau handler SIGTERM).
- *
- * Menggunakan factory function supaya inisialisasi app dan dependency-nya
- * dikontrol penuh oleh container, bukan via module side-effects saat di-require.
- */
+/**  Merakit aplikasi Express: middleware global, routes, dan error handler.
+ * app ini tidak membuka port. server.js yang menangani proses tersebut, jadi
+ * app bisa dipakai untuk testing tanpa ikut menyalakan server atau SIGTERM handler.
+ * createApp menerima container supaya dependency dan waktu inisialisasi tetap
+ * dikontrol dari luar, bukan dibuat sebagai side effect saat module di-load.
+ * Urutan middleware penting:
+ * helmet & cors -> header keamanan
+ * parser -> isi req.body sebelum masuk controller
+ * route API -> harus dipasang sebelum static file
+ * static file -> halaman demo
+ * 404 -> menangani route yang tidak ditemukan
+ * errorHandler -> harus selalu dipasang paling akhir */
 const path = require('node:path');
 
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const morgan = require('morgan');
 
 const { buildRoutes } = require('./routes');
 const { NotFoundError } = require('./utils/AppError');
@@ -48,15 +50,17 @@ const createApp = (container, settings) => {
     })
   );
 
+  // Paling awal: middleware di atasnya belum punya requestId, jadi log-nya
+  // tidak dapat dihubungkan ke permintaan mana pun. Ia juga menggantikan
+  // morgan — satu baris JSON dengan status dan durasi lebih berguna daripada
+  // teks bebas, dan bisa difilter per field.
+  app.use(container.requestLogger.handle);
+
   app.use(cors());
 
   // Cegah DoS via payload JSON/form berukuran besar
   app.use(express.json({ limit: settings.app.jsonBodyLimit }));
   app.use(express.urlencoded({ extended: true, limit: settings.app.jsonBodyLimit }));
-
-  if (settings.app.isDevelopment) {
-    app.use(morgan('dev'));
-  }
 
   // Route API harus didaftarkan sebelum static files agar prefix /api/v1 diprioritaskan
   app.use(API_PREFIX, buildRoutes(container));

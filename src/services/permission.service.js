@@ -28,7 +28,8 @@ class PermissionService {
    * Repository disuntikkan lewat constructor agar dapat digantikan objek
    * palsu saat pengujian unit, tanpa perlu database maupun Redis sungguhan.
    */
-  constructor({ users, permissions, cache, ttlSeconds }) {
+  constructor({ users, permissions, cache, ttlSeconds, logger }) {
+    this.logger = logger;
     this.users = users;
     this.permissions = permissions;
     this.cache = cache;
@@ -68,7 +69,7 @@ class PermissionService {
 
       return '1';
     } catch (error) {
-      console.error('[REDIS] versi cache permission tidak terbaca:', error.message);
+      this.logger.exception('versi cache izin tidak terbaca', error);
 
       return null;
     }
@@ -82,11 +83,11 @@ class PermissionService {
     try {
       const next = await this.cache.incr(VERSION_KEY);
 
-      console.log(`[RBAC] versi cache permission dinaikkan menjadi ${next}`);
+      this.logger.info('versi cache izin dinaikkan', { version: next });
 
       return String(next);
     } catch (error) {
-      console.error('[REDIS] gagal menaikkan versi cache permission:', error.message);
+      this.logger.exception('gagal menaikkan versi cache izin', error);
 
       return null;
     }
@@ -108,10 +109,7 @@ class PermissionService {
         return JSON.parse(cached);
       }
     } catch (error) {
-      console.error(
-        '[REDIS] cache permission tidak terbaca, membaca database:',
-        error.message
-      );
+      this.logger.exception('cache izin tidak terbaca, membaca database', error);
 
       // Redis di sini hanya salinan cepat; sumber kebenarannya PostgreSQL yang
       // masih hidup. Jadi kegagalannya dilewati, bukan menjatuhkan permintaan.
@@ -125,7 +123,7 @@ class PermissionService {
         EX: this.ttlSeconds,
       });
     } catch (error) {
-      console.error('[REDIS] cache permission gagal disimpan:', error.message);
+      this.logger.exception('cache izin gagal disimpan', error);
     }
 
     return permissions;
@@ -141,7 +139,7 @@ class PermissionService {
     try {
       await this.cache.del(this.#buildCacheKey(version, userId));
     } catch (error) {
-      console.error('[REDIS] gagal menghapus cache permission:', error.message);
+      this.logger.exception('gagal menghapus cache izin', error);
     }
   }
 

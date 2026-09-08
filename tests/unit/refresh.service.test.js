@@ -11,7 +11,7 @@ const {
   fakeDenylistRepository,
   fakeRefreshTokenRow,
   fakeRefreshTokenRepository,
-  silenceErrorLog,
+  fakeLogger,
   testTokenService,
   testPasswordPolicy,
 } = require('./fakes');
@@ -20,14 +20,12 @@ const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const PESAN_TIDAK_VALID = 'Refresh token tidak valid. Silakan login kembali.';
 
-/** console.warn dibungkam karena deteksi pemakaian ulang sengaja mencatatnya. */
-const silenceWarnLog = () => mock.method(console, 'warn', () => {});
-
 const buildService = ({ user = null, row = null } = {}) => {
   const log = createLog();
   const users = fakeUserRepository({ user, log });
   const refreshTokens = fakeRefreshTokenRepository({ row, log });
   const denylist = fakeDenylistRepository({ log });
+  const logger = fakeLogger();
 
   return {
     service: new AuthService({
@@ -36,10 +34,12 @@ const buildService = ({ user = null, row = null } = {}) => {
       refreshTokens,
       tokens: testTokenService(),
       ttlSeconds: REFRESH_TTL_SECONDS,
+      logger,
     }),
     users,
     refreshTokens,
     denylist,
+    logger,
     log,
   };
 };
@@ -178,10 +178,7 @@ test('AuthService.refresh — rotasi', async (t) => {
 });
 
 test('AuthService.refresh — deteksi pemakaian ulang', async (t) => {
-  await t.test('token yang sudah dicabut mencabut seluruh rangkaiannya', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceWarnLog();
-
+  await t.test('token yang sudah dicabut mencabut seluruh rangkaiannya', async () => {
     // Pada pemakaian normal ini tidak mungkin terjadi: klien membuang token
     // lamanya begitu menerima yang baru. Jadi kemunculannya berarti ada
     // salinan token itu di tangan orang lain.
@@ -206,10 +203,7 @@ test('AuthService.refresh — deteksi pemakaian ulang', async (t) => {
     );
   });
 
-  await t.test('hanya rangkaian itu yang dicabut, bukan seluruh sesi pengguna', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceWarnLog();
-
+  await t.test('hanya rangkaian itu yang dicabut, bukan seluruh sesi pengguna', async () => {
     // Mencabut semuanya berarti pengguna ikut terlempar keluar dari perangkat
     // lain yang tidak ada hubungannya dengan pencurian ini.
     const user = fakeUser();
@@ -221,18 +215,25 @@ test('AuthService.refresh — deteksi pemakaian ulang', async (t) => {
     assert.equal(refreshTokens.revokeAllForUser.mock.callCount(), 0);
   });
 
-  await t.test('kejadiannya dicatat ke log agar dapat ditelusuri', async (subtest) => {
-    subtest.mock.restoreAll();
-    const warn = silenceWarnLog();
-
+  await t.test('kejadiannya dicatat sebagai warn beserta userId dan familyId', async () => {
+    // Kejadian keamanan, bukan sekadar kegagalan. Level warn supaya dapat
+    // difilter tersendiri, dan kedua id-nya ikut supaya jejaknya dapat
+    // ditelusuri tanpa membaca ulang baris log lain.
     const user = fakeUser();
-    const row = fakeRefreshTokenRow({ userId: user.id, revokedAt: new Date() });
-    const { service } = buildService({ user, row });
+    const row = fakeRefreshTokenRow({
+      userId: user.id,
+      familyId: 'keluarga-abc',
+      revokedAt: new Date(),
+    });
+    const { service, logger } = buildService({ user, row });
 
     await captureError(() => service.refresh({ refreshToken: 'token-basi' }));
 
-    assert.equal(warn.mock.callCount(), 1);
-    assert.match(warn.mock.calls[0].arguments[0], /dipakai ulang/);
+    const [entry] = logger.at('warn');
+
+    assert.match(entry.message, /dipakai ulang/);
+    assert.equal(entry.fieldsOrError.userId, user.id);
+    assert.equal(entry.fieldsOrError.familyId, 'keluarga-abc');
   });
 });
 
@@ -364,6 +365,7 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
       refreshTokens,
       tokens: testTokenService(),
       policy: testPasswordPolicy(),
+      logger: fakeLogger(),
     });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
@@ -385,6 +387,7 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
       refreshTokens,
       tokens: testTokenService(),
       policy: testPasswordPolicy(),
+      logger: fakeLogger(),
     });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
@@ -398,10 +401,7 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
     ]);
   });
 
-  await t.test('reset yang gagal tidak mencabut sesi siapa pun', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('reset yang gagal tidak mencabut sesi siapa pun', async () => {
     const log = createLog();
     const refreshTokens = fakeRefreshTokenRepository({ log });
     const service = new PasswordService({

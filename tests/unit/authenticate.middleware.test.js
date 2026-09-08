@@ -9,7 +9,7 @@ const {
   fakeUserRepository,
   fakeDenylistRepository,
   testTokenService,
-  silenceErrorLog,
+  fakeLogger,
 } = require('./fakes');
 
 /**
@@ -29,11 +29,14 @@ const buildMiddleware = ({ user = fakeUser(), revoked = false, denylistFails = f
     });
   }
 
+  const logger = fakeLogger();
+
   return {
-    middleware: new AuthenticateMiddleware({ users, denylist, tokens }),
+    middleware: new AuthenticateMiddleware({ users, denylist, tokens, logger }),
     users,
     denylist,
     tokens,
+    logger,
   };
 };
 
@@ -73,11 +76,10 @@ test('AuthenticateMiddleware — token', async (t) => {
     // "tidak valid" berarti ada yang salah pada permintaannya.
     const { middleware, tokens } = buildMiddleware();
 
-    const kedaluwarsa = new (require('../../src/utils/token').TokenService)({
-      secret: 'kunci-uji-yang-panjangnya-lebih-dari-32-karakter',
-      accessTtlSeconds: -10,
-      opaqueBytes: 32,
-    }).signAccessToken('u1').token;
+    // TokenService uji yang sama, hanya masa berlakunya dibuat sudah lewat.
+    // Menyusunnya sendiri di sini pernah membuat tes ini salah lulus: token
+    // tanpa klaim iss/aud gagal dengan alasan LAIN, bukan karena kedaluwarsa.
+    const kedaluwarsa = testTokenService({ accessTtlSeconds: -10 }).signAccessToken('u1').token;
 
     const errorBasi = await captureError(() =>
       middleware.handle(fakeRequest(`Bearer ${kedaluwarsa}`), {}, () => {})
@@ -102,14 +104,11 @@ test('AuthenticateMiddleware — token', async (t) => {
     assert.match(error.message, /tidak berlaku/);
   });
 
-  await t.test('Redis mati menghasilkan 503, bukan meloloskan permintaan', async (subtest) => {
-    subtest.mock.restoreAll();
-    silenceErrorLog();
-
+  await t.test('Redis mati menghasilkan 503, bukan meloloskan permintaan', async () => {
     // Fail closed. Redis adalah satu-satunya sumber kebenaran untuk "token ini
     // sudah dicabut atau belum". Kalau tidak terbaca, kita TIDAK TAHU — dan
     // melanjutkan berarti menerima token yang mungkin sudah di-logout.
-    const { middleware, tokens, users } = buildMiddleware({ denylistFails: true });
+    const { middleware, tokens, users, logger } = buildMiddleware({ denylistFails: true });
 
     const error = await captureError(() =>
       middleware.handle(fakeRequest(bearer(tokens, 'u1')), {}, () => {})
@@ -117,6 +116,10 @@ test('AuthenticateMiddleware — token', async (t) => {
 
     assert.equal(error.statusCode, 503);
     assert.equal(users.findById.mock.callCount(), 0, 'tidak boleh lanjut ke pemeriksaan berikutnya');
+
+    // Kegagalannya WAJIB tercatat. 503 tanpa jejak di log berarti tidak ada
+    // yang tahu Redis sedang bermasalah.
+    assert.equal(logger.at('exception').length, 1);
   });
 });
 
