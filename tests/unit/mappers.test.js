@@ -102,6 +102,35 @@ test('toUserDto — yang TIDAK keluar', async (t) => {
   });
 });
 
+test('Nilai opsional yang kosong', async (t) => {
+  await t.test('setiap field opsional jatuh ke null, bukan undefined', async () => {
+    // undefined hilang saat diubah ke JSON, jadi field-nya lenyap dari
+    // jawaban. Pemanggil lalu harus membedakan "tidak ada nilainya" dari
+    // "field-nya tidak dikirim" — dua hal yang sebenarnya sama di sini.
+    const minimal = { id: 'u1', email: 'a@b.test', fullName: 'A', isActive: true };
+    const dto = toUserDto(minimal);
+
+    assert.equal(dto.phone, null);
+    assert.equal(dto.lastLoginAt, null);
+    assert.equal(JSON.parse(JSON.stringify(dto)).phone, null);
+  });
+
+  await t.test('profil tanpa avatar dan tanpa riwayat ganti password', async () => {
+    const dto = toProfileDto({ id: 'u1', email: 'a@b.test', fullName: 'A', isActive: true });
+
+    assert.equal(dto.avatarUrl, null);
+    assert.equal(dto.passwordChangedAt, null);
+  });
+
+  await t.test('role tanpa deskripsi dan tanpa penanda dilindungi', async () => {
+    const dto = toRoleDto({ id: 9, name: 'auditor', createdAt: new Date() });
+
+    assert.equal(dto.description, null);
+    assert.equal(dto.userCount, 0);
+    assert.equal(dto.isProtected, false);
+  });
+});
+
 test('toProfileDto', async (t) => {
   await t.test('passwordChangedAt IKUT — pemiliknya berhak tahu', async () => {
     // Bedanya dengan toUserDto. Bagi pemilik akun ini keterangan berguna;
