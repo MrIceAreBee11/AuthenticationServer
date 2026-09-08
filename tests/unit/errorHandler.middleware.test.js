@@ -75,6 +75,94 @@ test('ErrorHandler — error yang dikenali', async (t) => {
   });
 });
 
+test('ErrorHandler — kesalahan dari klien', async (t) => {
+  /** Meniru bentuk error body-parser: type, status, expose. */
+  const bodyParserError = (type, status, message) =>
+    Object.assign(new SyntaxError(message), { type, status, statusCode: status, expose: true });
+
+  await t.test('JSON rusak jadi 400, bukan 500', async () => {
+    // Sebelum perbaikan ini jawabannya 500 — kesalahan klien dilaporkan
+    // sebagai kesalahan server, dan di development stack trace-nya ikut
+    // terkirim balik ke klien.
+    const { res } = handle(
+      bodyParserError('entity.parse.failed', 400, 'Unexpected token r in JSON')
+    );
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.code, ERROR_CODES.MALFORMED_JSON);
+  });
+
+  await t.test('pesan tidak memantulkan isi body permintaan', async () => {
+    // Pesan bawaan body-parser menyertakan potongan body yang gagal diparse,
+    // jadi ia memantulkan masukan mentah klien balik ke klien. Selain tidak
+    // berguna bagi pengguna, itu bukan kebiasaan yang layak dipelihara.
+    const pesanAsli = [
+      'Unexpected token ',
+      String.fromCharCode(39),
+      'r',
+      String.fromCharCode(39),
+      ', "{"email": rusak" is not valid JSON',
+    ].join('');
+
+    const { res } = handle(bodyParserError('entity.parse.failed', 400, pesanAsli));
+
+    assert.ok(!JSON.stringify(res.body).includes('rusak'));
+    assert.equal(res.body.message, 'Body permintaan bukan JSON yang valid');
+  });
+
+  await t.test('tidak dicatat sebagai error tak tertangani', async () => {
+    // Kesalahan klien tidak boleh mengotori log error. requestLogger sudah
+    // mencatatnya sebagai 4xx.
+    const { logger } = handle(bodyParserError('entity.parse.failed', 400, 'x'));
+
+    assert.equal(logger.entries.length, 0);
+  });
+
+  await t.test('body terlalu besar jadi 413', async () => {
+    const { res } = handle(bodyParserError('entity.too.large', 413, 'request entity too large'));
+
+    assert.equal(res.statusCode, 413);
+    assert.equal(res.body.code, ERROR_CODES.PAYLOAD_TOO_LARGE);
+  });
+
+  await t.test('charset dan encoding tak didukung jadi 415', async () => {
+    for (const type of ['encoding.unsupported', 'charset.unsupported']) {
+      const { res } = handle(bodyParserError(type, 415, 'unsupported'));
+
+      assert.equal(res.statusCode, 415, type);
+      assert.equal(res.body.code, ERROR_CODES.UNSUPPORTED_MEDIA_TYPE, type);
+    }
+  });
+
+  await t.test('jenis 4xx yang belum terdaftar tetap 4xx, bukan jatuh ke 500', async () => {
+    // Jaring pengaman. Pustaka yang memakai http-errors menandai error 4xx
+    // dengan expose: true; penanda itu dipakai supaya jenis baru dari versi
+    // berikutnya tidak berubah menjadi 500 tanpa ada yang menyadarinya.
+    const { res, logger } = handle(
+      Object.assign(new Error('parameters.too.many'), {
+        type: 'parameters.too.many',
+        status: 413,
+        expose: true,
+      })
+    );
+
+    assert.equal(res.statusCode, 413);
+    assert.equal(logger.entries.length, 0);
+  });
+
+  await t.test('error 5xx dengan expose true TETAP jatuh ke 500 generik', async () => {
+    // expose hanya dipercaya untuk 4xx. Error 5xx dari pustaka mana pun tetap
+    // masalah sisi kita, dan pesan aslinya tidak boleh keluar.
+    const { res, logger } = handle(
+      Object.assign(new Error('rincian internal bocor'), { status: 503, expose: true })
+    );
+
+    assert.equal(res.statusCode, 500);
+    assert.ok(!JSON.stringify(res.body).includes('rincian internal bocor'));
+    assert.equal(logger.at('exception').length, 1);
+  });
+});
+
 test('ErrorHandler — error tak terduga', async (t) => {
   await t.test('jadi 500 dengan pesan generik, tanpa membocorkan aslinya', async () => {
     const { res } = handle(
