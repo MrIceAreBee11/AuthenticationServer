@@ -1,90 +1,114 @@
-const AppError = require('../utils/AppError');
-const { verifyAccessToken } = require('../utils/token');
-const { userRepository } = require('../repositories/user.repository');
-const { tokenDenylistRepository } = require('../repositories/tokenDenylist.repository');
-
-const { BEARER_PREFIX } = require('../constants/cacheKeys');
-
 /**
- * Lima pemeriksaan, disusun dari yang termurah ke yang termahal. Permintaan
- * yang akan ditolak sebaiknya ditolak secepat mungkin — bukan sekadar demi
- * kecepatan, tetapi supaya server tetap bertahan ketika sedang diserang.
+ * BERKAS INI: pemeriksaan "siapa Anda" pada setiap permintaan terlindungi.
  *
- *   1. Header ada dan berformat Bearer   -> cek teks
- *   2. Tanda tangan token sah            -> hitung HMAC
- *   3. Token tidak ada di daftar cabut   -> Redis
- *   4. Pengguna ada dan berstatus aktif  -> PostgreSQL
+ * KENAPA DI middlewares/ DAN BUKAN modules/auth/: ia dipakai oleh SELURUH
+ * modul — profile, users, roles. Berkas yang dipakai lintas fitur tidak boleh
+ * tinggal di dalam salah satu fitur, karena itu membuat modules/users
+ * bergantung pada modules/auth tanpa alasan.
+ *
+ * KENAPA CLASS SEKARANG: sebelumnya berkas ini meng-require userRepository dan
+ * tokenDenylistRepository langsung di baris atas. Akibatnya lima pemeriksaan di
+ * bawah — inti keamanan seluruh aplikasi — tidak bisa diuji tanpa PostgreSQL
+ * dan Redis yang benar-benar hidup, dan karena itu nol pengujiannya.
+ *
+ * LIMA PEMERIKSAAN, disusun dari termurah ke termahal. Permintaan yang akan
+ * ditolak sebaiknya ditolak secepat mungkin — bukan demi kecepatan, tetapi
+ * supaya server tetap bertahan ketika sedang diserang.
+ *
+ *   1. Header ada dan berformat Bearer     -> cek teks
+ *   2. Tanda tangan token sah              -> hitung HMAC
+ *   3. Token tidak ada di daftar cabut     -> Redis
+ *   4. Pengguna ada dan berstatus aktif    -> PostgreSQL
  *   5. Token terbit setelah ganti password -> perbandingan angka
  */
-const authenticate = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
+const AppError = require('../utils/AppError');
+const { BEARER_PREFIX } = require('../constants/cacheKeys');
 
-  if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
-    throw new AppError('Token tidak ditemukan', 401);
+class AuthenticateMiddleware {
+  constructor({ users, denylist, tokens }) {
+    this.users = users;
+    this.denylist = denylist;
+    this.tokens = tokens;
   }
 
-  const token = authHeader.slice(BEARER_PREFIX.length).trim();
+  #readToken(authHeader) {
+    if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
+      throw new AppError('Token tidak ditemukan', 401);
+    }
 
-  let payload;
-
-  // try/catch sengaja hanya melingkupi verifikasi token. Kalau ia membungkus
-  // seluruh fungsi, kegagalan koneksi database akan dilaporkan sebagai
-  // "token tidak valid" — dan pencarian bug-nya jadi salah arah.
-  try {
-    payload = verifyAccessToken(token);
-  } catch (error) {
-    const message =
-      error.name === 'TokenExpiredError'
-        ? 'Token sudah kedaluwarsa'
-        : 'Token tidak valid';
-
-    throw new AppError(message, 401);
+    return authHeader.slice(BEARER_PREFIX.length).trim();
   }
 
-  let isRevoked;
-
-  try {
-    isRevoked = await tokenDenylistRepository.isRevoked(payload.jti);
-  } catch (error) {
-    console.error('[REDIS] gagal memeriksa denylist:', error.message);
-
-    // Redis adalah satu-satunya sumber kebenaran untuk "token ini sudah
-    // dicabut atau belum". Kalau tidak terbaca, kita tidak tahu — dan
-    // melanjutkan berarti menerima token yang mungkin sudah di-logout.
-    throw new AppError(
-      'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.',
-      503
-    );
+  /**
+   * try/catch sengaja hanya melingkupi verifikasi token. Kalau ia membungkus
+   * seluruh method, kegagalan koneksi basis data akan dilaporkan sebagai
+   * "token tidak valid" — dan pencarian bug-nya jadi salah arah.
+   */
+  #verify(token) {
+    try {
+      return this.tokens.verifyAccessToken(token);
+    } catch (error) {
+      throw new AppError(
+        error.name === 'TokenExpiredError' ? 'Token sudah kedaluwarsa' : 'Token tidak valid',
+        401
+      );
+    }
   }
 
-  if (isRevoked) {
-    throw new AppError('Token sudah tidak berlaku. Silakan login kembali.', 401);
+  async #assertNotRevoked(tokenId) {
+    let isRevoked;
+
+    try {
+      isRevoked = await this.denylist.isRevoked(tokenId);
+    } catch (error) {
+      console.error('[REDIS] gagal memeriksa denylist:', error.message);
+
+      // Redis adalah satu-satunya sumber kebenaran untuk "token ini sudah
+      // dicabut atau belum". Kalau tidak terbaca, kita tidak tahu — dan
+      // melanjutkan berarti menerima token yang mungkin sudah di-logout.
+      throw new AppError('Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.', 503);
+    }
+
+    if (isRevoked) {
+      throw new AppError('Token sudah tidak berlaku. Silakan login kembali.', 401);
+    }
   }
 
-  const user = await userRepository.findById(payload.sub);
+  /**
+   * iat hanya beresolusi detik, jadi perbandingannya juga harus dalam detik.
+   * Konsekuensi: token yang terbit pada detik yang sama dengan reset masih
+   * lolos — jendela yang terlalu sempit untuk dapat dimanfaatkan, dan jauh
+   * lebih baik daripada salah menolak token yang baru saja diterbitkan.
+   */
+  #assertIssuedAfterPasswordChange(user, issuedAtSeconds) {
+    if (!user.passwordChangedAt) {
+      return;
+    }
 
-  if (!user || !user.isActive) {
-    throw new AppError('Akun tidak ditemukan atau tidak aktif', 401);
-  }
-
-  if (user.passwordChangedAt) {
-    // iat hanya beresolusi detik, jadi perbandingan juga harus dalam detik.
-    // Konsekuensi: token yang terbit pada detik yang sama dengan reset masih
-    // lolos — jendela yang terlalu sempit untuk dapat dimanfaatkan, dan jauh
-    // lebih baik daripada salah menolak token yang baru saja diterbitkan.
-    const passwordChangedAtSeconds = Math.floor(
-      user.passwordChangedAt.getTime() / 1000
-    );
-
-    if (payload.iat < passwordChangedAtSeconds) {
+    if (issuedAtSeconds < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
       throw new AppError('Password telah diubah. Silakan login kembali.', 401);
     }
   }
 
-  req.user = user;
-  req.token = { id: payload.jti, expiresAt: payload.exp };
+  /** Arrow field: `this` tetap terikat saat handler diserahkan ke router. */
+  handle = async (req, res, next) => {
+    const payload = this.#verify(this.#readToken(req.headers.authorization));
 
-  return next();
-};
+    await this.#assertNotRevoked(payload.jti);
 
-module.exports = authenticate;
+    const user = await this.users.findById(payload.sub);
+
+    if (!user || !user.isActive) {
+      throw new AppError('Akun tidak ditemukan atau tidak aktif', 401);
+    }
+
+    this.#assertIssuedAfterPasswordChange(user, payload.iat);
+
+    req.user = user;
+    req.token = { id: payload.jti, expiresAt: payload.exp };
+
+    return next();
+  };
+}
+
+module.exports = { AuthenticateMiddleware };

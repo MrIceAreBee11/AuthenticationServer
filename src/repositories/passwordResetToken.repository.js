@@ -1,6 +1,23 @@
-const crypto = require('node:crypto');
+/**
+ * BERKAS INI: penyimpanan sementara token reset password di Redis.
+ *
+ * KENAPA DI repositories/: satu-satunya lapisan yang menyentuh Redis, dan
+ * satu-satunya yang tahu bahwa token disimpan dalam bentuk hash.
+ *
+ * KENAPA DI REDIS, BUKAN PostgreSQL seperti refresh token: umurnya hanya lima
+ * belas menit dan ia tidak perlu meninggalkan jejak. TTL Redis membersihkannya
+ * sendiri tanpa perlu penjadwal apa pun.
+ *
+ * KENAPA YANG DISIMPAN HASH-nya: kalau isi Redis bocor, pemegangnya tidak
+ * dapat menyusun kembali token asli lalu memakainya mengganti password orang.
+ *
+ * KENAPA SHA-256, BUKAN BCRYPT: bcrypt sengaja lambat untuk memperlambat
+ * penebakan rahasia berentropi rendah seperti password manusia. Token ini 32
+ * byte acak — menebaknya mustahil berapa pun kecepatannya, jadi kelambatan
+ * bcrypt hanya membebani server tanpa menambah keamanan sedikit pun.
+ */
 
-const { redisClient } = require('../redis');
+const crypto = require('node:crypto');
 
 /**
  * Token reset password yang disimpan sementara di Redis.
@@ -18,7 +35,7 @@ const { CACHE_KEYS } = require('../constants/cacheKeys');
 const KEY_PREFIX = CACHE_KEYS.PASSWORD_RESET;
 
 class PasswordResetTokenRepository {
-  constructor(cache = redisClient) {
+  constructor(cache) {
     this.cache = cache;
   }
 
@@ -41,7 +58,4 @@ class PasswordResetTokenRepository {
   }
 }
 
-module.exports = {
-  PasswordResetTokenRepository,
-  passwordResetTokenRepository: new PasswordResetTokenRepository(),
-};
+module.exports = { PasswordResetTokenRepository };

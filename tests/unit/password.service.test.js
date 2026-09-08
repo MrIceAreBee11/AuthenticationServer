@@ -9,6 +9,8 @@ const {
   fakeUserRepository,
   fakeResetTokenRepository,
   fakeRefreshTokenRepository,
+  testTokenService,
+  testPasswordPolicy,
 } = require('./fakes');
 
 const PESAN_TOKEN_TIDAK_VALID = 'Token reset tidak valid atau sudah kedaluwarsa';
@@ -20,7 +22,13 @@ const buildService = ({ user = null, userId = null } = {}) => {
   const refreshTokens = fakeRefreshTokenRepository({ log });
 
   return {
-    service: new PasswordService({ users, resetTokens, refreshTokens }),
+    service: new PasswordService({
+      users,
+      resetTokens,
+      refreshTokens,
+      tokens: testTokenService(),
+      policy: testPasswordPolicy(),
+    }),
     users,
     resetTokens,
     refreshTokens,

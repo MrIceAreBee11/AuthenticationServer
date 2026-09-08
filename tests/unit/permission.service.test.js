@@ -13,6 +13,7 @@ const {
 } = require('./fakes');
 
 const KUNCI_VERSI = 'permissions:version';
+const CACHE_TTL = 300;
 const AWALAN_KUNCI = 'permissions:user:';
 
 const buildService = ({ user = null, names = [], cache = fakeCache() } = {}) => {
@@ -20,7 +21,7 @@ const buildService = ({ user = null, names = [], cache = fakeCache() } = {}) => 
   const permissions = fakePermissionRepository({ names });
 
   return {
-    service: new PermissionService({ users, permissions, cache }),
+    service: new PermissionService({ users, permissions, cache, ttlSeconds: CACHE_TTL }),
     users,
     permissions,
     cache,

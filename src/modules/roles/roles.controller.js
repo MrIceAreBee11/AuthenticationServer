@@ -1,8 +1,14 @@
+/**
+ * BERKAS INI: penerjemah HTTP untuk role dan katalog izin.
+ *
+ * KENAPA KATALOG IZIN IKUT DI SINI: role dan permission satu domain (RBAC),
+ * dan katalognya hanya berguna untuk menyusun role. Alamatnya tetap dipisah
+ * (/permissions) supaya sumber dayanya jelas berbeda.
+ */
 const { successResponse } = require('../../utils/response');
-const { rolesService } = require('./roles.service');
 
 class RolesController {
-  constructor({ roles = rolesService } = {}) {
+  constructor({ roles }) {
     this.roles = roles;
   }
 
@@ -58,4 +64,4 @@ class RolesController {
   };
 }
 
-module.exports = { RolesController, rolesController: new RolesController() };
+module.exports = { RolesController };

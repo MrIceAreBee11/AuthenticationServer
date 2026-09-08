@@ -1,5 +1,20 @@
 'use strict';
 
+/**
+ * BERKAS INI: definisi tabel refresh_tokens.
+ *
+ * KENAPA DI database/models/: jalurnya ditunjuk .sequelizerc, dan hanya
+ * repository yang boleh mengimpornya.
+ *
+ * KENAPA ADA KOLOM family_id: penanda satu rangkaian token yang berasal dari
+ * satu kali login. Setiap rotasi mewarisinya, sehingga seluruh keturunan
+ * sebuah sesi dapat dicabut sekaligus ketika terdeteksi ada yang memakai token
+ * lama — tanpa ikut mencabut sesi pengguna di perangkat lain.
+ *
+ * KENAPA revoked_at TIDAK MENGHAPUS BARISNYA: baris yang sudah dicabut itulah
+ * yang membuat pemakaian ulang dapat dikenali. Menghapusnya justru membuang
+ * barang bukti yang dibutuhkan.
+ */
 const { Model, DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {

@@ -1,18 +1,22 @@
-const { User } = require('../database');
-
 /**
- * Satu-satunya tempat yang menyusun query untuk tabel users.
+ * BERKAS INI: seluruh query untuk tabel users.
  *
- * Aturan lapisan ini: Sequelize hanya boleh disebut di dalam folder
- * repositories. Service memanggil repository, tidak pernah menyentuh model.
+ * KENAPA DI repositories/: inilah SATU-SATUNYA lapisan yang boleh menyebut
+ * Sequelize atau klien Redis. Service memanggil repository dan tidak pernah
+ * menyentuh model. Aturan itu yang membuat service dapat diuji tanpa basis
+ * data, dan membuat penggantian ORM hanya menyentuh folder ini.
  *
- * Catatan sadar: repository ini mengembalikan instance model, bukan objek
- * biasa. Alasannya, perilaku yang melekat pada instance masih dibutuhkan —
- * comparePassword() untuk verifikasi, toJSON() yang membuang passwordHash,
- * dan hook beforeSave yang mengenkripsi password. Kalau pembaruan dilakukan
- * lewat User.update() statis, hook itu tidak berjalan dan password tersimpan
- * sebagai teks polos tanpa satu pun error. Karena itu setiap penulisan di sini
- * memakai instance.update().
+ * KENAPA DEPENDENSINYA MASUK LEWAT CONSTRUCTOR: sebelumnya berkas ini
+ * meng-import model di baris atas. Ikatan itu terjadi saat berkas di-require,
+ * jadi tidak ada cara memasang model lain — dan tidak ada cara mengujinya.
+ *
+ * KEPUTUSAN SADAR — repository ini mengembalikan instance model, bukan objek
+ * biasa. Perilaku yang melekat pada instance masih dibutuhkan:
+ * comparePassword() untuk verifikasi, toJSON() yang membuang passwordHash, dan
+ * hook beforeSave yang meng-hash password. Kalau pembaruan dilakukan lewat
+ * User.update() statis, hook itu TIDAK berjalan dan password tersimpan sebagai
+ * teks polos tanpa satu pun error. Karena itu setiap penulisan memakai
+ * instance.update().
  */
 
 const ROLE_INCLUDE_BASIC = {
@@ -41,9 +45,13 @@ const ROLE_WITH_PERMISSIONS_INCLUDE = {
 };
 
 class UserRepository {
+  constructor({ User }) {
+    this.User = User;
+  }
+
   /** Scope bawaan membuang passwordHash; unscoped dipakai hanya saat hash memang diperlukan. */
   #scoped(includePassword) {
-    return includePassword ? User.unscoped() : User;
+    return includePassword ? this.User.unscoped() : this.User;
   }
 
   #roleInclude(detailed) {
@@ -62,13 +70,13 @@ class UserRepository {
 
   /** Dipakai pemeriksaan izin: user -> roles -> permissions dalam satu query. */
   async findWithRolePermissions(userId) {
-    return User.findByPk(userId, { include: [ROLE_WITH_PERMISSIONS_INCLUDE] });
+    return this.User.findByPk(userId, { include: [ROLE_WITH_PERMISSIONS_INCLUDE] });
   }
 
   async paginate({ limit, offset }) {
     // distinct wajib ada: tanpanya count menghitung baris hasil JOIN, sehingga
     // user dengan dua role terhitung dua kali dan total menjadi salah.
-    return User.findAndCountAll({
+    return this.User.findAndCountAll({
       include: [ROLE_INCLUDE_BASIC],
       order: [['createdAt', 'DESC']],
       limit,
@@ -78,7 +86,7 @@ class UserRepository {
   }
 
   async create(data, options = {}) {
-    return User.create(data, options);
+    return this.User.create(data, options);
   }
 
   async update(user, changes, options = {}) {
@@ -94,4 +102,4 @@ class UserRepository {
   }
 }
 
-module.exports = { UserRepository, userRepository: new UserRepository() };
+module.exports = { UserRepository };

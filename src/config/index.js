@@ -50,6 +50,7 @@ const config = Object.freeze({
     url: raw.APP_URL,
     trustProxy: raw.TRUST_PROXY,
     shutdownTimeoutMs: raw.SHUTDOWN_TIMEOUT_MS,
+    jsonBodyLimit: raw.JSON_BODY_LIMIT,
     isDevelopment: raw.NODE_ENV === 'development',
     isProduction: raw.NODE_ENV === 'production',
   }),

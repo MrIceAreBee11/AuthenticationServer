@@ -1,10 +1,16 @@
+/**
+ * BERKAS INI: dua endpoint yang menjawab "apakah layanan ini sehat".
+ *
+ * KENAPA MODUL SENDIRI: keduanya tidak melayani pengguna, melainkan Docker dan
+ * load balancer. Menyelipkannya ke modul lain membuat pembacanya harus menebak
+ * kenapa ada endpoint tanpa autentikasi di sana.
+ */
 const { successResponse, errorResponse } = require('../../utils/response');
-const { healthRepository } = require('../../repositories/health.repository');
-const { config } = require('../../config');
 
 class HealthController {
-  constructor({ health = healthRepository } = {}) {
+  constructor({ health, environment }) {
     this.health = health;
+    this.environment = environment;
   }
 
   /**
@@ -15,7 +21,7 @@ class HealthController {
   liveness = (req, res) =>
     successResponse(res, 200, 'Service berjalan normal', {
       uptime: Math.floor(process.uptime()),
-      environment: config.app.env,
+      environment: this.environment,
       timestamp: new Date().toISOString(),
     });
 
@@ -45,4 +51,4 @@ class HealthController {
   };
 }
 
-module.exports = { HealthController, healthController: new HealthController() };
+module.exports = { HealthController };

@@ -1,10 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const app = require('../src/app');
-const { sequelize } = require('../src/database');
-const { redisClient, connectRedis } = require('../src/redis');
-const { closeQueue } = require('../src/queue');
+// Container dirakit di sini, sama seperti yang dilakukan server.js. Pengujian
+// end-to-end memang harus memakai perakitan yang sungguhan — kalau ia memakai
+// susunan sendiri, yang diuji bukan aplikasi yang benar-benar dijalankan.
+const { config } = require('../src/config');
+const { Container } = require('../src/container');
+const { createApp } = require('../src/app');
+
+const container = new Container(config);
+const app = createApp(container, config);
 
 let server;
 let baseUrl;
@@ -34,15 +39,15 @@ const call = async (path, { method = 'GET', token, body } = {}) => {
  * padahal murni akibat pengujian sebelumnya.
  */
 const resetRateLimiter = async () => {
-  const keys = await redisClient.keys('ratelimit:*');
+  const keys = await container.cache.keys('ratelimit:*');
 
   if (keys.length > 0) {
-    await redisClient.del(keys);
+    await container.cache.del(keys);
   }
 };
 
 test.before(async () => {
-  await connectRedis();
+  await container.connect();
   await resetRateLimiter();
 
   server = app.listen(0);
@@ -65,9 +70,7 @@ test.after(async () => {
   }
 
   await new Promise((resolve) => server.close(resolve));
-  await closeQueue().catch(() => {});
-  await redisClient.quit().catch(() => {});
-  await sequelize.close();
+  await container.close();
 });
 
 test('katalog permission dikelompokkan per sumber daya', async () => {

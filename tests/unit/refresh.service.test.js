@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 const { mock } = require('node:test');
 
 const { AuthService } = require('../../src/modules/auth/auth.service');
-const { verifyAccessToken } = require('../../src/utils/token');
 const {
   createLog,
   captureError,
@@ -13,7 +12,11 @@ const {
   fakeRefreshTokenRow,
   fakeRefreshTokenRepository,
   silenceErrorLog,
+  testTokenService,
+  testPasswordPolicy,
 } = require('./fakes');
+
+const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const PESAN_TIDAK_VALID = 'Refresh token tidak valid. Silakan login kembali.';
 
@@ -27,7 +30,13 @@ const buildService = ({ user = null, row = null } = {}) => {
   const denylist = fakeDenylistRepository({ log });
 
   return {
-    service: new AuthService({ users, denylist, refreshTokens }),
+    service: new AuthService({
+      users,
+      denylist,
+      refreshTokens,
+      tokens: testTokenService(),
+      ttlSeconds: REFRESH_TTL_SECONDS,
+    }),
     users,
     refreshTokens,
     denylist,
@@ -117,7 +126,7 @@ test('AuthService.refresh — rotasi', async (t) => {
 
     const hasil = await service.refresh({ refreshToken: 'token-lama' });
 
-    assert.equal(verifyAccessToken(hasil.token).sub, user.id);
+    assert.equal(testTokenService().verifyAccessToken(hasil.token).sub, user.id);
     assert.match(hasil.refreshToken, /^[A-Za-z0-9_-]{43}$/);
     assert.notEqual(hasil.refreshToken, 'token-lama');
     assert.equal(hasil.user.passwordHash, undefined);
@@ -349,7 +358,13 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
     const resetTokens = fakeResetTokenRepository({ userId: user.id, log });
     const refreshTokens = fakeRefreshTokenRepository({ log });
 
-    const service = new PasswordService({ users, resetTokens, refreshTokens });
+    const service = new PasswordService({
+      users,
+      resetTokens,
+      refreshTokens,
+      tokens: testTokenService(),
+      policy: testPasswordPolicy(),
+    });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
 
@@ -364,7 +379,13 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
     const resetTokens = fakeResetTokenRepository({ userId: user.id, log });
     const refreshTokens = fakeRefreshTokenRepository({ log });
 
-    const service = new PasswordService({ users, resetTokens, refreshTokens });
+    const service = new PasswordService({
+      users,
+      resetTokens,
+      refreshTokens,
+      tokens: testTokenService(),
+      policy: testPasswordPolicy(),
+    });
 
     await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
 

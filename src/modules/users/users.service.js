@@ -1,10 +1,18 @@
+/**
+ * BERKAS INI: aturan pengelolaan akun ORANG LAIN oleh administrator.
+ *
+ * KENAPA DI modules/users/: seluruh isinya melayani satu fitur.
+ *
+ * DUA ATURAN DI ATAS RBAC yang perlu diperhatikan. RBAC hanya menjawab "boleh
+ * tidak kamu mengubah user", bukan "boleh tidak kamu mengubah user INI".
+ * Selisih itu diisi oleh #assertCanManage, dan berpasangan keduanya menjamin
+ * selalu ada minimal satu superadmin: superadmin boleh menghapus superadmin
+ * lain tetapi tidak dirinya sendiri, dan admin biasa tidak dapat menyentuh
+ * keduanya. Inilah pertahanan terhadap IDOR — dan ia harus di service, bukan
+ * di middleware, karena hanya di sini identitas targetnya sudah diketahui.
+ */
+
 const AppError = require('../../utils/AppError');
-const { runInTransaction } = require('../../database');
-const { removeObject } = require('../../storage');
-const { userRepository } = require('../../repositories/user.repository');
-const { roleRepository } = require('../../repositories/role.repository');
-const { permissionService } = require('../../services/permission.service');
-const { config } = require('../../config');
 const { ROLES } = require('../../constants/roles');
 
 
@@ -13,20 +21,14 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class UsersService {
-  constructor({
-    users = userRepository,
-    roles = roleRepository,
-    permissions = permissionService,
-    storage = null,
-    policy = config.password,
-    paging = config.pagination.users,
-  } = {}) {
-    this.policy = policy;
-    this.paging = paging;
+  constructor({ users, roles, permissions, storage, policy, paging, database }) {
     this.users = users;
     this.roles = roles;
     this.permissions = permissions;
-    this.storage = storage ?? { removeObject };
+    this.storage = storage;
+    this.policy = policy;
+    this.paging = paging;
+    this.database = database;
   }
 
   /**
@@ -143,7 +145,7 @@ class UsersService {
     // Menyimpan user dan menetapkan role-nya adalah dua operasi tulis yang
     // tidak bermakna secara terpisah. Tanpa transaksi, kegagalan pada
     // penetapan role meninggalkan akun tanpa role yang emailnya sudah terpakai.
-    const created = await runInTransaction(async (transaction) => {
+    const created = await this.database.runInTransaction(async (transaction) => {
       const user = await this.users.create(
         { email, passwordHash: password, fullName, phone: phone ?? null },
         { transaction }
@@ -237,4 +239,4 @@ class UsersService {
   }
 }
 
-module.exports = { UsersService, usersService: new UsersService() };
+module.exports = { UsersService };

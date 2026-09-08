@@ -1,5 +1,25 @@
 'use strict';
 
+/**
+ * BERKAS INI: definisi tabel users beserta perilaku yang melekat padanya.
+ *
+ * KENAPA DI database/models/: jalurnya ditunjuk .sequelizerc, dan hanya
+ * repository yang boleh mengimpornya.
+ *
+ * KENAPA ADA PERILAKU DI MODEL, BUKAN DI SERVICE: ketiga hal di bawah harus
+ * berlaku pada SETIAP penyimpanan, dari mana pun asalnya — service, seeder,
+ * atau migration. Menaruhnya di service berarti seeder bisa melewatinya.
+ *
+ *   defaultScope    membuang passwordHash dari setiap query, jadi lupa
+ *                   menyaringnya tidak berujung pada kebocoran
+ *   toJSON()        membuangnya lagi saat objek diubah menjadi JSON
+ *   beforeSave      meng-hash password sebelum tersimpan
+ *
+ * KENAPA NORMALISASI DI beforeValidate DAN HASH DI beforeSave: urutannya
+ * penting dan pernah salah. Validasi berjalan SEBELUM beforeSave, jadi email
+ * yang dinormalkan di beforeSave akan divalidasi dalam bentuk aslinya —
+ * "  TEST@Example.COM  " ditolak sebagai format email tidak valid.
+ */
 const { Model, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 

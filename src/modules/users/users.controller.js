@@ -1,8 +1,15 @@
+/**
+ * BERKAS INI: penerjemah HTTP untuk pengelolaan pengguna oleh administrator.
+ *
+ * KENAPA TERPISAH DARI profile.controller: keduanya menyentuh tabel yang sama
+ * tetapi kewenangannya berbeda jauh. /profile berarti "akun saya sendiri" dan
+ * identitasnya selalu dari token; /users berarti "akun orang lain" dan
+ * dijaga izin. Menyatukannya membuat perbedaan itu mudah tertukar.
+ */
 const { successResponse } = require('../../utils/response');
-const { usersService } = require('./users.service');
 
 class UsersController {
-  constructor({ users = usersService } = {}) {
+  constructor({ users }) {
     this.users = users;
   }
 
@@ -58,4 +65,4 @@ class UsersController {
   };
 }
 
-module.exports = { UsersController, usersController: new UsersController() };
+module.exports = { UsersController };

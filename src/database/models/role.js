@@ -1,5 +1,16 @@
 'use strict';
 
+/**
+ * BERKAS INI: definisi tabel roles dan relasinya ke permissions.
+ *
+ * KENAPA DI database/models/: jalurnya ditunjuk .sequelizerc, dan hanya
+ * repository yang boleh mengimpornya.
+ *
+ * KENAPA id-nya INTEGER, bukan UUID seperti users: role jumlahnya sedikit,
+ * tidak pernah muncul di URL publik, dan tidak ada yang perlu disembunyikan
+ * dari penomoran berurutan. UUID pada users justru mencegah orang menebak
+ * jumlah pengguna dari ID akunnya sendiri.
+ */
 const { Model, DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {

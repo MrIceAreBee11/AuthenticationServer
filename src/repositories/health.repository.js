@@ -1,22 +1,24 @@
-const { sequelize } = require('../database');
-const { redisClient } = require('../redis');
-
 /**
- * Pemeriksaan ketersediaan infrastruktur.
+ * BERKAS INI: pemeriksaan hidup-matinya basis data dan cache.
  *
- * Diletakkan di lapisan repository karena inilah satu-satunya lapisan yang
- * boleh menyentuh objek sequelize dan klien Redis secara langsung. Controller
- * kesehatan hanya menyusun jawabannya.
+ * KENAPA DI repositories/: inilah satu-satunya lapisan yang boleh menyentuh
+ * koneksi secara langsung. Controller kesehatan hanya menyusun jawabannya dari
+ * dua boolean yang dikembalikan di bawah.
+ *
+ * KENAPA MENGEMBALIKAN BOOLEAN, BUKAN MELEMPAR: endpoint readiness harus
+ * melaporkan SELURUH keadaan sekaligus. Kalau ia berhenti di kegagalan
+ * pertama, diagnosisnya jadi berlapis — perbaiki basis data, baru tahu Redis
+ * juga mati.
  */
 class HealthRepository {
-  constructor({ database = sequelize, cache = redisClient } = {}) {
+  constructor({ database, cache }) {
     this.database = database;
     this.cache = cache;
   }
 
   async pingDatabase() {
     try {
-      await this.database.authenticate();
+      await this.database.connect();
 
       return true;
     } catch (error) {
@@ -39,4 +41,4 @@ class HealthRepository {
   }
 }
 
-module.exports = { HealthRepository, healthRepository: new HealthRepository() };
+module.exports = { HealthRepository };

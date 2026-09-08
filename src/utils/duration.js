@@ -1,3 +1,16 @@
+/**
+ * BERKAS INI: pengubah durasi bergaya "15m" atau "7d" menjadi jumlah detik.
+ *
+ * KENAPA DI utils/ DAN TETAP FUNGSI: murni, tanpa dependensi, tanpa keadaan.
+ * Aturan penempatannya berhenti di pertanyaan kedua — fungsi murni tanpa I/O
+ * masuk utils/, dan class tidak memberi apa pun di sini.
+ *
+ * KENAPA DITULIS SENDIRI, BUKAN MEMAKAI PAKET: bentuk yang perlu didukung
+ * hanya empat satuan, dan seluruhnya tercakup satu ekspresi reguler. Yang
+ * justru penting bukan pengubahannya melainkan PENOLAKANNYA — dan itu tidak
+ * disediakan paket mana pun.
+ */
+
 const SECONDS_PER_UNIT = { s: 1, m: 60, h: 3600, d: 86400 };
 
 const PATTERN = /^(\d+)([smhd])$/;

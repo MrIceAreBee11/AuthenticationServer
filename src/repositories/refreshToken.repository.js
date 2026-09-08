@@ -1,7 +1,23 @@
+/**
+ * BERKAS INI: seluruh query untuk tabel refresh_tokens.
+ *
+ * KENAPA DI repositories/: satu-satunya lapisan yang menyentuh model, dan
+ * satu-satunya yang tahu token disimpan sebagai hash.
+ *
+ * KENAPA DI PostgreSQL, BUKAN REDIS seperti token reset: umurnya tujuh hari
+ * sedangkan Redis diperlakukan sebagai cache yang boleh hilang; deteksi
+ * pemakaian ulang butuh jejak yang TIDAK boleh lenyap lewat TTL; dan mencabut
+ * seluruh sesi seorang pengguna cukup satu perintah UPDATE.
+ *
+ * KENAPA SHA-256: sama seperti token reset — token ini 32 byte acak, jadi
+ * kelambatan bcrypt tidak menambah keamanan. Di sini ada alasan tambahan yang
+ * memaksa: hash-nya juga menjadi kunci pencarian, jadi ia wajib deterministik.
+ * Bcrypt yang memakai salt acak tidak bisa dipakai untuk itu.
+ */
+
 const crypto = require('node:crypto');
 const { Op } = require('sequelize');
 
-const { RefreshToken } = require('../database');
 
 /**
  * Satu-satunya tempat yang menyusun query untuk tabel refresh_tokens, dan
@@ -14,19 +30,23 @@ const { RefreshToken } = require('../database');
  * Bcrypt yang memakai salt acak justru tidak bisa dipakai untuk itu.
  */
 class RefreshTokenRepository {
+  constructor({ RefreshToken }) {
+    this.RefreshToken = RefreshToken;
+  }
+
   #hash(plainToken) {
     return crypto.createHash('sha256').update(plainToken).digest('hex');
   }
 
   async create({ plainToken, userId, familyId, expiresAt }, options = {}) {
-    return RefreshToken.create(
+    return this.RefreshToken.create(
       { userId, familyId, expiresAt, tokenHash: this.#hash(plainToken) },
       options
     );
   }
 
   async findByToken(plainToken) {
-    return RefreshToken.findOne({ where: { tokenHash: this.#hash(plainToken) } });
+    return this.RefreshToken.findOne({ where: { tokenHash: this.#hash(plainToken) } });
   }
 
   async revoke(row, options = {}) {
@@ -35,7 +55,7 @@ class RefreshTokenRepository {
 
   /** Mencabut satu rangkaian sesi — dipakai saat logout dan saat pemakaian ulang. */
   async revokeFamily(familyId) {
-    const [affected] = await RefreshToken.update(
+    const [affected] = await this.RefreshToken.update(
       { revokedAt: new Date() },
       { where: { familyId, revokedAt: null } }
     );
@@ -45,7 +65,7 @@ class RefreshTokenRepository {
 
   /** Mencabut seluruh sesi seorang pengguna — dipakai setelah reset password. */
   async revokeAllForUser(userId) {
-    const [affected] = await RefreshToken.update(
+    const [affected] = await this.RefreshToken.update(
       { revokedAt: new Date() },
       { where: { userId, revokedAt: null } }
     );
@@ -64,13 +84,10 @@ class RefreshTokenRepository {
    * terpisah yang harus dirawat sendiri.
    */
   async deleteExpired(userId) {
-    return RefreshToken.destroy({
+    return this.RefreshToken.destroy({
       where: { userId, expiresAt: { [Op.lt]: new Date() } },
     });
   }
 }
 
-module.exports = {
-  RefreshTokenRepository,
-  refreshTokenRepository: new RefreshTokenRepository(),
-};
+module.exports = { RefreshTokenRepository };

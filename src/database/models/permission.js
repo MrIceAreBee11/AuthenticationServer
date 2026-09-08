@@ -1,5 +1,16 @@
 'use strict';
 
+/**
+ * BERKAS INI: definisi tabel permissions.
+ *
+ * KENAPA DI database/models/: jalurnya ditunjuk .sequelizerc, dan hanya
+ * repository yang boleh mengimpornya.
+ *
+ * KENAPA IZIN MELEKAT PADA ROLE, BUKAN LANGSUNG PADA PENGGUNA: kalau izin
+ * diberikan per pengguna, menambah satu jenis izin baru berarti menyentuh
+ * setiap baris pengguna yang membutuhkannya. Dengan role sebagai perantara,
+ * perubahan itu satu baris.
+ */
 const { Model, DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {

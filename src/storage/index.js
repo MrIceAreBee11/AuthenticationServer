@@ -1,50 +1,75 @@
+/**
+ * BERKAS INI: penyimpanan berkas di MinIO — unggah, alamat sementara, hapus.
+ *
+ * KENAPA BUKAN DI DALAM modules/profile/: penyimpanan objek melewati batas
+ * proses, sama seperti basis data dan antrean. Ia adalah adapter, bukan bagian
+ * dari sebuah fitur. Kalau suatu saat pindah ke S3 atau ke disk lokal,
+ * satu-satunya berkas yang berubah adalah ini.
+ *
+ * KENAPA CLASS: `let isBucketReady = false` dulu berada di module scope, dan
+ * ProfileService menerima penyimpanan sebagai objek `{ putObject, ... }` yang
+ * dirakit dadakan di dalam constructor-nya sendiri. Sekarang bentuknya satu
+ * objek dengan kontrak jelas yang disuntikkan dari container.
+ *
+ * KENAPA ALAMAT SEMENTARA (presigned URL): bucket-nya tertutup. Kalau avatar
+ * disajikan lewat aplikasi, setiap tampilan halaman melewatkan berkas biner
+ * melalui proses Node. Presigned URL membuat peramban mengambilnya langsung
+ * dari MinIO, dan alamatnya kedaluwarsa sendiri.
+ */
 const Minio = require('minio');
 
-const { config } = require('../config');
+class ObjectStorage {
+  #bucketReady = false;
 
-const minioClient = new Minio.Client({
-  endPoint: config.storage.host,
-  port: config.storage.port,
-  useSSL: config.storage.useSSL,
-  accessKey: config.storage.accessKey,
-  secretKey: config.storage.secretKey,
-});
+  constructor(settings) {
+    this.bucket = settings.bucket;
 
-let isBucketReady = false;
-
-const ensureBucket = async () => {
-  if (isBucketReady) {
-    return;
+    this.client = new Minio.Client({
+      endPoint: settings.host,
+      port: settings.port,
+      useSSL: settings.useSSL,
+      accessKey: settings.accessKey,
+      secretKey: settings.secretKey,
+    });
   }
 
-  const exists = await minioClient.bucketExists(config.storage.bucket);
+  /**
+   * Bucket dipastikan ada sebelum operasi pertama, bukan saat aplikasi start.
+   * Dengan begitu MinIO yang belum siap tidak menghalangi seluruh aplikasi
+   * menyala — hanya fitur avatar yang menunggu.
+   */
+  async #ensureBucket() {
+    if (this.#bucketReady) {
+      return;
+    }
 
-  if (!exists) {
-    await minioClient.makeBucket(config.storage.bucket);
-    console.log(`[MINIO] bucket "${config.storage.bucket}" dibuat`);
+    if (!(await this.client.bucketExists(this.bucket))) {
+      await this.client.makeBucket(this.bucket);
+      console.log(`[MINIO] bucket "${this.bucket}" dibuat`);
+    }
+
+    this.#bucketReady = true;
   }
 
-  isBucketReady = true;
-};
+  async putObject(objectKey, buffer, mimeType) {
+    await this.#ensureBucket();
 
-const putObject = async (objectKey, buffer, mimeType) => {
-  await ensureBucket();
+    return this.client.putObject(this.bucket, objectKey, buffer, buffer.length, {
+      'Content-Type': mimeType,
+    });
+  }
 
-  return minioClient.putObject(config.storage.bucket, objectKey, buffer, buffer.length, {
-    'Content-Type': mimeType,
-  });
-};
+  async getPresignedUrl(objectKey, expirySeconds) {
+    await this.#ensureBucket();
 
-const getPresignedUrl = async (objectKey, expirySeconds) => {
-  await ensureBucket();
+    return this.client.presignedGetObject(this.bucket, objectKey, expirySeconds);
+  }
 
-  return minioClient.presignedGetObject(config.storage.bucket, objectKey, expirySeconds);
-};
+  async removeObject(objectKey) {
+    await this.#ensureBucket();
 
-const removeObject = async (objectKey) => {
-  await ensureBucket();
+    return this.client.removeObject(this.bucket, objectKey);
+  }
+}
 
-  return minioClient.removeObject(config.storage.bucket, objectKey);
-};
-
-module.exports = { putObject, getPresignedUrl, removeObject };
+module.exports = { ObjectStorage };

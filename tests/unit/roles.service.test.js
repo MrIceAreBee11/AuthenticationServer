@@ -8,6 +8,7 @@ const {
   fakeRoleRepository,
   fakePermissionRepository,
   fakePermissionCache,
+  fakeDatabase,
 } = require('./fakes');
 
 const buildService = ({
@@ -29,6 +30,7 @@ const buildService = ({
       roles: rolesRepo,
       permissions: permissionsRepo,
       permissionCache,
+      database: fakeDatabase(),
     }),
     rolesRepo,
     permissionsRepo,

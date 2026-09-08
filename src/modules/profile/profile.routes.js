@@ -1,32 +1,35 @@
+/**
+ * BERKAS INI: alamat endpoint profil sendiri.
+ *
+ * KENAPA PABRIK, BUKAN ROUTER SIAP PAKAI: router lama dibuat sebagai efek
+ * samping saat berkas di-require, dan ia mengambil controller dari singleton
+ * yang diekspor modul. Sekarang ia menerima container, sehingga satu-satunya
+ * tempat yang tahu implementasi konkret tetap src/container.js.
+ *
+ * ISINYA SENGAJA HANYA URUTAN: alamat, rantai middleware, dan handler. Tidak
+ * ada satu pun `if` atas data bisnis di sini — begitu ada, ia milik service.
+ */
 const { Router } = require('express');
 
-const { profileController } = require('./profile.controller');
-const authenticate = require('../../middlewares/authenticate');
-const authorize = require('../../middlewares/authorize');
-const { uploadAvatar } = require('../../middlewares/upload');
 const { PERMISSIONS } = require('../../constants/permissions');
 
-const router = Router();
+const buildProfileRoutes = ({ controllers, authenticate, authorize, upload }) => {
+  const router = Router();
+  const profile = controllers.profile;
+  const requireToken = authenticate.handle;
+  const canRead = authorize.require(PERMISSIONS.PROFILE_READ);
+  const canUpdate = authorize.require(PERMISSIONS.PROFILE_UPDATE);
 
-router.get('/', authenticate, authorize(PERMISSIONS.PROFILE_READ), profileController.get);
-router.patch('/', authenticate, authorize(PERMISSIONS.PROFILE_UPDATE), profileController.update);
+  router.get('/', requireToken, canRead, profile.get);
+  router.patch('/', requireToken, canUpdate, profile.update);
 
-// uploadAvatar diletakkan SETELAH authenticate dan authorize. Multer membaca
-// seluruh body ke memori; kalau ia dipasang lebih dulu, permintaan tanpa izin
-// pun memaksa server menyerap 2 MB sebelum akhirnya ditolak.
-router.post(
-  '/avatar',
-  authenticate,
-  authorize(PERMISSIONS.PROFILE_UPDATE),
-  uploadAvatar,
-  profileController.uploadAvatar
-);
+  // upload diletakkan SETELAH authenticate dan authorize. Multer membaca
+  // seluruh body ke memori; kalau ia dipasang lebih dulu, permintaan tanpa
+  // izin pun memaksa server menyerap 2 MB sebelum akhirnya ditolak.
+  router.post('/avatar', requireToken, canUpdate, upload.handle, profile.uploadAvatar);
+  router.delete('/avatar', requireToken, canUpdate, profile.removeAvatar);
 
-router.delete(
-  '/avatar',
-  authenticate,
-  authorize(PERMISSIONS.PROFILE_UPDATE),
-  profileController.removeAvatar
-);
+  return router;
+};
 
-module.exports = router;
+module.exports = { buildProfileRoutes };

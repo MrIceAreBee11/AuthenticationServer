@@ -1,13 +1,11 @@
+/**
+ * BERKAS INI: alur lupa password dan penggantiannya.
+ *
+ * KENAPA TERPISAH DARI auth.service: keduanya sama-sama di modules/auth,
+ * tetapi alurnya berbeda — yang ini melibatkan antrean email dan token
+ * berumur pendek, dan memisahkannya menjaga kedua class tetap kecil.
+ */
 const AppError = require('../../utils/AppError');
-const { config } = require('../../config');
-const { createOpaqueToken } = require('../../utils/token');
-const { userRepository } = require('../../repositories/user.repository');
-const {
-  passwordResetTokenRepository,
-} = require('../../repositories/passwordResetToken.repository');
-const {
-  refreshTokenRepository,
-} = require('../../repositories/refreshToken.repository');
 
 class PasswordService {
   /**
@@ -16,14 +14,16 @@ class PasswordService {
    * dapat menyerahkan kebijakan lain tanpa menyentuh process.env global.
    */
   constructor({
-    users = userRepository,
-    resetTokens = passwordResetTokenRepository,
-    refreshTokens = refreshTokenRepository,
-    policy = config.password,
-  } = {}) {
+    users,
+    resetTokens,
+    refreshTokens,
+    tokens,
+    policy,
+  }) {
     this.users = users;
     this.resetTokens = resetTokens;
     this.refreshTokens = refreshTokens;
+    this.tokens = tokens;
     this.policy = policy;
   }
 
@@ -42,7 +42,7 @@ class PasswordService {
       return null;
     }
 
-    const resetToken = createOpaqueToken();
+    const resetToken = this.tokens.createOpaqueToken();
 
     await this.resetTokens.save(resetToken, user.id, this.policy.resetTtlSeconds);
 
@@ -94,4 +94,4 @@ class PasswordService {
   }
 }
 
-module.exports = { PasswordService, passwordService: new PasswordService() };
+module.exports = { PasswordService };

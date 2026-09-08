@@ -2,37 +2,54 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 
-const { signAccessToken, verifyAccessToken } = require('../../src/utils/token');
+const { TokenService } = require('../../src/utils/token');
 
+const SECRET = 'kunci-uji-yang-panjangnya-lebih-dari-32-karakter';
 const ID_PENGGUNA = '11111111-1111-4111-8111-111111111111';
 
-test('signAccessToken', async (t) => {
+// Kunci dan masa berlaku masuk lewat constructor, bukan dari environment.
+// Itulah yang membuat berkas ini dapat menguji beberapa konfigurasi sekaligus
+// dalam satu proses — sebelumnya tidak mungkin.
+const buildService = (overrides = {}) =>
+  new TokenService({ secret: SECRET, accessTtlSeconds: 900, opaqueBytes: 32, ...overrides });
+
+test('TokenService.signAccessToken', async (t) => {
   await t.test('token memuat pemilik, penanda unik, dan masa berlaku', async () => {
-    const { token, jti } = signAccessToken(ID_PENGGUNA);
-    const payload = verifyAccessToken(token);
+    const tokens = buildService();
+    const { token, jti } = tokens.signAccessToken(ID_PENGGUNA);
+    const payload = tokens.verifyAccessToken(token);
 
     assert.equal(payload.sub, ID_PENGGUNA);
     assert.equal(payload.jti, jti);
     assert.ok(payload.iat, 'iat dipakai membandingkan waktu ganti password');
-    assert.ok(payload.exp > payload.iat, 'token wajib punya batas waktu');
+    assert.equal(payload.exp - payload.iat, 900, 'masa berlaku diambil dari constructor');
+  });
+
+  await t.test('masa berlaku benar-benar mengikuti yang disuntikkan', async () => {
+    const { token } = buildService({ accessTtlSeconds: 60 }).signAccessToken(ID_PENGGUNA);
+    const payload = jwt.decode(token);
+
+    assert.equal(payload.exp - payload.iat, 60);
   });
 
   await t.test('setiap token punya jti yang berbeda', async () => {
     // jti adalah pegangan satu-satunya untuk mencabut token lewat logout.
     // Kalau ia berulang, mencabut satu token akan mencabut token lain juga.
+    const tokens = buildService();
     const daftarJti = new Set();
 
     for (let i = 0; i < 50; i += 1) {
-      daftarJti.add(signAccessToken(ID_PENGGUNA).jti);
+      daftarJti.add(tokens.signAccessToken(ID_PENGGUNA).jti);
     }
 
     assert.equal(daftarJti.size, 50);
   });
 
   await t.test('isi token dapat dibaca siapa saja — jadi tidak boleh berisi rahasia', async () => {
-    // JWT hanya ditandatangani, bukan dienkripsi. Pengujian ini mendokumentasi-
-    // kan kenyataan itu sekaligus memastikan tidak ada data sensitif yang ikut.
-    const { token } = signAccessToken(ID_PENGGUNA);
+    // JWT hanya ditandatangani, bukan dienkripsi. Pengujian ini
+    // mendokumentasikan kenyataan itu sekaligus memastikan tidak ada data
+    // sensitif yang ikut terbawa.
+    const { token } = buildService().signAccessToken(ID_PENGGUNA);
     const [, bagianIsi] = token.split('.');
 
     const isi = JSON.parse(Buffer.from(bagianIsi, 'base64url').toString('utf8'));
@@ -41,16 +58,20 @@ test('signAccessToken', async (t) => {
   });
 });
 
-test('verifyAccessToken', async (t) => {
+test('TokenService.verifyAccessToken', async (t) => {
   await t.test('token yang isinya diubah ditolak', async () => {
-    const { token } = signAccessToken(ID_PENGGUNA);
+    const tokens = buildService();
+    const { token } = tokens.signAccessToken(ID_PENGGUNA);
     const [header, isi, tandaTangan] = token.split('.');
 
     const isiPalsu = Buffer.from(
-      JSON.stringify({ ...JSON.parse(Buffer.from(isi, 'base64url').toString('utf8')), sub: 'orang-lain' })
+      JSON.stringify({
+        ...JSON.parse(Buffer.from(isi, 'base64url').toString('utf8')),
+        sub: 'orang-lain',
+      })
     ).toString('base64url');
 
-    assert.throws(() => verifyAccessToken(`${header}.${isiPalsu}.${tandaTangan}`));
+    assert.throws(() => tokens.verifyAccessToken(`${header}.${isiPalsu}.${tandaTangan}`));
   });
 
   await t.test('token yang ditandatangani kunci lain ditolak', async () => {
@@ -59,22 +80,53 @@ test('verifyAccessToken', async (t) => {
       expiresIn: '1h',
     });
 
-    assert.throws(() => verifyAccessToken(tokenAsing), /invalid signature/);
+    assert.throws(() => buildService().verifyAccessToken(tokenAsing), /invalid signature/);
   });
 
   await t.test('token yang sudah kedaluwarsa ditolak dengan nama error yang khas', async () => {
     // Nama error inilah yang dipakai middleware untuk membedakan pesan
     // "sudah kedaluwarsa" dari "tidak valid".
-    const tokenBasi = jwt.sign({ jti: 'basi' }, process.env.JWT_SECRET, {
+    const tokenBasi = jwt.sign({ jti: 'basi' }, SECRET, {
       subject: ID_PENGGUNA,
       expiresIn: '-1s',
     });
 
-    assert.throws(() => verifyAccessToken(tokenBasi), { name: 'TokenExpiredError' });
+    assert.throws(() => buildService().verifyAccessToken(tokenBasi), {
+      name: 'TokenExpiredError',
+    });
   });
 
   await t.test('teks sembarang ditolak', async () => {
-    assert.throws(() => verifyAccessToken('bukan-token'));
-    assert.throws(() => verifyAccessToken(''));
+    const tokens = buildService();
+
+    assert.throws(() => tokens.verifyAccessToken('bukan-token'));
+    assert.throws(() => tokens.verifyAccessToken(''));
+  });
+});
+
+test('TokenService.createOpaqueToken', async (t) => {
+  await t.test('32 byte acak dalam base64url, aman untuk ditempel ke URL', async () => {
+    const token = buildService().createOpaqueToken();
+
+    // 32 byte tepat 43 karakter base64url, tanpa karakter yang perlu di-escape
+    // di dalam URL — penting karena token reset dikirim lewat tautan email.
+    assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+  });
+
+  await t.test('panjangnya mengikuti yang disuntikkan', async () => {
+    const token = buildService({ opaqueBytes: 64 }).createOpaqueToken();
+
+    assert.equal(token.length, 86);
+  });
+
+  await t.test('tidak pernah berulang', async () => {
+    const tokens = buildService();
+    const daftar = new Set();
+
+    for (let i = 0; i < 200; i += 1) {
+      daftar.add(tokens.createOpaqueToken());
+    }
+
+    assert.equal(daftar.size, 200);
   });
 });

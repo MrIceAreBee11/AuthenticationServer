@@ -1,8 +1,20 @@
+/**
+ * BERKAS INI: aturan pembuatan, perubahan, dan penghapusan role.
+ *
+ * KENAPA DI modules/roles/: melayani satu fitur.
+ *
+ * KENAPA ROLE SUPERADMIN DILINDUNGI: namanya dijadikan acuan oleh aturan
+ * keamanan di users.service. Kalau ia dapat diganti nama, perlindungan akun
+ * superadmin berhenti bekerja tanpa satu pun error — dan tidak ada yang tahu
+ * sampai seseorang mencoba.
+ *
+ * KENAPA ROLE YANG MASIH DIPAKAI TIDAK DAPAT DIHAPUS: ON DELETE CASCADE pada
+ * tabel penghubung akan mencabut wewenang sejumlah pengguna sekaligus secara
+ * diam-diam. Basis data hanya menjaga integritas referensi; ia tidak tahu
+ * bahwa yang baru saja terhapus itu adalah hak akses orang.
+ */
+
 const AppError = require('../../utils/AppError');
-const { runInTransaction } = require('../../database');
-const { roleRepository } = require('../../repositories/role.repository');
-const { permissionRepository } = require('../../repositories/permission.repository');
-const { permissionService } = require('../../services/permission.service');
 const { PROTECTED_ROLES } = require('../../constants/roles');
 
 // Daftarnya ada di constants/roles.js, dibaca juga oleh users.service.
@@ -11,11 +23,8 @@ const { PROTECTED_ROLES } = require('../../constants/roles');
 const PROTECTED_ROLE_NAMES = PROTECTED_ROLES;
 
 class RolesService {
-  constructor({
-    roles = roleRepository,
-    permissions = permissionRepository,
-    permissionCache = permissionService,
-  } = {}) {
+  constructor({ roles, permissions, permissionCache, database }) {
+    this.database = database;
     this.roles = roles;
     this.permissions = permissions;
     this.permissionCache = permissionCache;
@@ -113,7 +122,7 @@ class RolesService {
     const permissions =
       permissionIds === undefined ? [] : await this.#resolvePermissions(permissionIds);
 
-    const created = await runInTransaction(async (transaction) => {
+    const created = await this.database.runInTransaction(async (transaction) => {
       const role = await this.roles.create(
         { name: String(name).trim().toLowerCase(), description: description ?? null },
         { transaction }
@@ -193,4 +202,4 @@ class RolesService {
   }
 }
 
-module.exports = { RolesService, rolesService: new RolesService() };
+module.exports = { RolesService };

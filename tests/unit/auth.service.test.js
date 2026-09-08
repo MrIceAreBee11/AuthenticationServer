@@ -3,14 +3,16 @@ const assert = require('node:assert/strict');
 const { mock } = require('node:test');
 
 const { AuthService } = require('../../src/modules/auth/auth.service');
-const { verifyAccessToken } = require('../../src/utils/token');
 const {
   captureError,
   fakeUser,
   fakeUserRepository,
   fakeDenylistRepository,
   fakeRefreshTokenRepository,
+  testTokenService,
 } = require('./fakes');
+
+const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const buildService = ({ user = null } = {}) => {
   const users = fakeUserRepository({ user });
@@ -18,7 +20,13 @@ const buildService = ({ user = null } = {}) => {
   const refreshTokens = fakeRefreshTokenRepository();
 
   return {
-    service: new AuthService({ users, denylist, refreshTokens }),
+    service: new AuthService({
+      users,
+      denylist,
+      refreshTokens,
+      tokens: testTokenService(),
+      ttlSeconds: REFRESH_TTL_SECONDS,
+    }),
     users,
     denylist,
     refreshTokens,
@@ -35,7 +43,7 @@ test('AuthService.login', async (t) => {
       password: 'PasswordBenar123',
     });
 
-    const payload = verifyAccessToken(hasil.token);
+    const payload = testTokenService().verifyAccessToken(hasil.token);
 
     assert.equal(payload.sub, user.id, 'subject token harus id pengguna');
     assert.ok(payload.jti, 'token wajib punya jti untuk keperluan pencabutan');

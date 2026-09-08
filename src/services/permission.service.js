@@ -1,7 +1,22 @@
-const { config } = require('../config');
-const { redisClient } = require('../redis');
-const { userRepository } = require('../repositories/user.repository');
-const { permissionRepository } = require('../repositories/permission.repository');
+/**
+ * BERKAS INI: penentu daftar izin seorang pengguna, beserta cache-nya.
+ *
+ * KENAPA DI services/ DAN BUKAN modules/roles/: ia dipakai lintas fitur —
+ * middleware otorisasi memakainya pada setiap permintaan terlindungi, dan
+ * modul users memakainya saat role seseorang berubah. Menaruhnya di dalam
+ * modules/roles/ akan membuat seluruh modul lain bergantung pada modul roles.
+ *
+ * KENAPA CACHE-nya BERVERSI, BUKAN DIHAPUS SATU-SATU: mengubah izin sebuah
+ * role memengaruhi SEMUA pemakainya sekaligus. Menghapus cache per pengguna
+ * berarti menyapu keyspace Redis untuk mencari siapa saja yang terdampak.
+ * Menaikkan satu angka versi membuat seluruh cache lama tidak terjangkau dalam
+ * satu operasi, dan sisa kunci lamanya hilang sendiri lewat TTL.
+ *
+ * KENAPA KEGAGALAN REDIS DILEWATI, BUKAN MENJATUHKAN PERMINTAAN: di sini Redis
+ * hanya salinan cepat; sumber kebenarannya PostgreSQL yang masih hidup.
+ * Berbeda dengan daftar token cabut, yang tidak punya sumber lain sama sekali
+ * dan karena itu harus fail closed.
+ */
 
 const { CACHE_KEYS } = require('../constants/cacheKeys');
 
@@ -13,12 +28,7 @@ class PermissionService {
    * Repository disuntikkan lewat constructor agar dapat digantikan objek
    * palsu saat pengujian unit, tanpa perlu database maupun Redis sungguhan.
    */
-  constructor({
-    users = userRepository,
-    permissions = permissionRepository,
-    cache = redisClient,
-    ttlSeconds = config.permission.cacheTtlSeconds,
-  } = {}) {
+  constructor({ users, permissions, cache, ttlSeconds }) {
     this.users = users;
     this.permissions = permissions;
     this.cache = cache;
@@ -163,4 +173,4 @@ class PermissionService {
   }
 }
 
-module.exports = { PermissionService, permissionService: new PermissionService() };
+module.exports = { PermissionService };

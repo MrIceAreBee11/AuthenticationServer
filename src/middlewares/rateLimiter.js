@@ -1,51 +1,85 @@
+/**
+ * BERKAS INI: pabrik pembatas laju untuk endpoint yang rawan dicoba berulang.
+ *
+ * KENAPA DI middlewares/: ia berjalan sebelum controller dan tidak tahu apa pun
+ * tentang isi permintaannya. Batasnya juga bukan aturan bisnis — ia perlindungan
+ * infrastruktur.
+ *
+ * KENAPA CLASS: sebelumnya berkas ini mengimpor redisClient dan config
+ * langsung, lalu membuat kedua pembatas laju sebagai efek samping saat
+ * di-require. Keduanya jadi tidak mungkin diuji, dan angkanya tertanam di kode.
+ *
+ * KENAPA PENYIMPANANNYA REDIS, BUKAN MEMORI: penghitung di memori berlaku per
+ * proses. Dua container berarti dua penghitung, dan batas lima percobaan
+ * berubah menjadi sepuluh. Redis membuat penghitungnya satu, berapa pun jumlah
+ * instance-nya.
+ *
+ * KENAPA ANGKANYA DARI CONFIG: saat serangan credential-stuffing sedang
+ * berjalan, batasnya perlu diperketat sekarang — bukan setelah build berikutnya
+ * selesai.
+ */
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 
-const { redisClient, connectRedis } = require('../redis');
 const { errorResponse } = require('../utils/response');
-const { config } = require('../config');
 const { CACHE_KEYS } = require('../constants/cacheKeys');
 const { MS } = require('../constants/units');
 
+class RateLimiterFactory {
+  constructor({ cache, limits }) {
+    this.cache = cache;
+    this.limits = limits;
+  }
 
+  #build({ prefix, windowMs, maxAttempts, message, skipSuccessfulRequests = false }) {
+    return rateLimit({
+      store: new RedisStore({
+        prefix,
+        // Dibungkus, bukan diserahkan langsung: pembatas laju dipasang saat
+        // route didefinisikan, jauh sebelum server memanggil connect().
+        // Memanggil Redis pada saat itu menghasilkan ClientOfflineError.
+        sendCommand: (...args) => this.cache.sendCommand(args),
+      }),
+      windowMs,
+      limit: maxAttempts,
+      skipSuccessfulRequests,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      handler: (req, res) => errorResponse(res, 429, message),
+    });
+  }
 
-const buildStore = (prefix) =>
-  new RedisStore({
-    prefix,
-    sendCommand: async (...args) => {
-      await connectRedis();
+  /**
+   * Hanya percobaan yang GAGAL yang dihitung. Kalau yang berhasil ikut
+   * dihitung, pengguna yang login berkali-kali dari perangkat berbeda akan
+   * terkena batas padahal tidak melakukan kesalahan apa pun.
+   */
+  login() {
+    const { windowMs, maxAttempts } = this.limits.login;
 
-      return redisClient.sendCommand(args);
-    },
-  });
+    return this.#build({
+      prefix: CACHE_KEYS.RATE_LIMIT_LOGIN,
+      windowMs,
+      maxAttempts,
+      skipSuccessfulRequests: true,
+      message: `Terlalu banyak percobaan login. Silakan coba lagi dalam ${
+        windowMs / MS.MINUTE
+      } menit.`,
+    });
+  }
 
-const loginRateLimiter = rateLimit({
-  store: buildStore(CACHE_KEYS.RATE_LIMIT_LOGIN),
-  windowMs: config.rateLimit.login.windowMs,
-  limit: config.rateLimit.login.maxAttempts,
-  skipSuccessfulRequests: true,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  handler: (req, res) =>
-    errorResponse(
-      res,
-      429,
-      `Terlalu banyak percobaan login. Silakan coba lagi dalam ${config.rateLimit.login.windowMs / MS.MINUTE} menit.`
-    ),
-});
+  passwordReset() {
+    const { windowMs, maxAttempts } = this.limits.passwordReset;
 
-const passwordResetRateLimiter = rateLimit({
-  store: buildStore(CACHE_KEYS.RATE_LIMIT_PASSWORD_RESET),
-  windowMs: config.rateLimit.passwordReset.windowMs,
-  limit: config.rateLimit.passwordReset.maxAttempts,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  handler: (req, res) =>
-    errorResponse(
-      res,
-      429,
-      `Terlalu banyak permintaan reset password. Silakan coba lagi dalam ${config.rateLimit.passwordReset.windowMs / MS.HOUR} jam.`
-    ),
-});
+    return this.#build({
+      prefix: CACHE_KEYS.RATE_LIMIT_PASSWORD_RESET,
+      windowMs,
+      maxAttempts,
+      message: `Terlalu banyak permintaan reset password. Silakan coba lagi dalam ${
+        windowMs / MS.HOUR
+      } jam.`,
+    });
+  }
+}
 
-module.exports = { loginRateLimiter, passwordResetRateLimiter };
+module.exports = { RateLimiterFactory };

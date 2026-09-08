@@ -71,6 +71,7 @@ const envSchema = z
     APP_URL: z.url(),
     TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
     SHUTDOWN_TIMEOUT_MS: count(10 * MS.SECOND),
+    JSON_BODY_LIMIT: z.string().default('10kb'),
 
     // ---------- PostgreSQL ----------
     DB_HOST: z.string().min(1),

@@ -1,8 +1,16 @@
+/**
+ * BERKAS INI: penerjemah HTTP untuk profil milik sendiri.
+ *
+ * KENAPA DI modules/profile/: hanya fitur ini yang memakainya.
+ *
+ * TUGASNYA CUMA TIGA: baca permintaan, panggil SATU method service, susun
+ * jawaban. Tidak ada aturan bisnis, tidak ada query, tidak ada try/catch per
+ * handler — kegagalan diteruskan ke error handler terpusat.
+ */
 const { successResponse } = require('../../utils/response');
-const { profileService } = require('./profile.service');
 
 class ProfileController {
-  constructor({ profiles = profileService } = {}) {
+  constructor({ profiles }) {
     this.profiles = profiles;
   }
 
@@ -37,4 +45,4 @@ class ProfileController {
   };
 }
 
-module.exports = { ProfileController, profileController: new ProfileController() };
+module.exports = { ProfileController };

@@ -1,9 +1,22 @@
+/**
+ * BERKAS INI: aturan seputar profil milik sendiri, termasuk foto avatar.
+ *
+ * KENAPA TERPISAH DARI users.service: keduanya menyentuh tabel yang sama
+ * tetapi kewenangannya berbeda jauh. Berkas ini selalu bekerja pada akun
+ * pemanggil sendiri — ID-nya dari token, tidak pernah dari input. users.service
+ * bekerja pada akun ORANG LAIN dan karena itu penuh pemeriksaan hak akses.
+ * Menyatukannya membuat perbedaan itu mudah tertukar, dan tertukarnya berarti
+ * seseorang mengubah profil orang lain.
+ *
+ * KENAPA KEGAGALAN STORAGE DIMAAFKAN: nama, email, dan role sama sekali tidak
+ * bergantung pada penyimpanan berkas. Ketika MinIO bermasalah, pengguna
+ * melihat profilnya tanpa foto — bukan halaman error.
+ */
+
 const crypto = require('node:crypto');
 
 const AppError = require('../../utils/AppError');
-const { putObject, getPresignedUrl, removeObject } = require('../../storage');
-const { userRepository } = require('../../repositories/user.repository');
-const { config } = require('../../config');
+
 const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/;
 
 const EXTENSION_BY_MIME = {
@@ -13,13 +26,9 @@ const EXTENSION_BY_MIME = {
 };
 
 class ProfileService {
-  constructor({
-    users = userRepository,
-    storage = null,
-    avatar = config.upload.avatar,
-  } = {}) {
+  constructor({ users, storage, avatar }) {
     this.users = users;
-    this.storage = storage ?? { putObject, getPresignedUrl, removeObject };
+    this.storage = storage;
     this.avatar = avatar;
   }
 
@@ -137,4 +146,4 @@ class ProfileService {
   }
 }
 
-module.exports = { ProfileService, profileService: new ProfileService() };
+module.exports = { ProfileService };

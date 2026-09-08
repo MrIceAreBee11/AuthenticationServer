@@ -1,64 +1,124 @@
+/**
+ * BERKAS INI: koneksi Redis beserta pembuktian bahwa ia benar-benar siap.
+ *
+ * KENAPA DI redis/ padahal namanya menyebut vendor: repository dan service
+ * tidak pernah menyebut nama ini — mereka menerima `cache` lewat constructor.
+ * Nama folder hanya menandai implementasinya, dan pemakainya tidak tahu.
+ *
+ * KENAPA CLASS: sebelumnya berkas ini menyimpan `let connectPromise = null` di
+ * module scope. State seperti itu tidak bisa direset antar berkas pengujian dan
+ * bocor dari satu skenario ke skenario berikutnya. Sekarang ia field instance.
+ *
+ * CATATAN isOpen VS isReady: keduanya berbeda dan pernah menghabiskan waktu
+ * lama untuk ditemukan. isOpen berarti socket-nya tersambung; isReady berarti
+ * server sudah menjawab dan perintah boleh dikirim. Menganggap isOpen cukup
+ * membuat perintah pertama gagal dengan ClientOfflineError.
+ */
 const { once } = require('node:events');
 const { createClient } = require('redis');
 
-const { config } = require('../config');
+class CacheClient {
+  #connectPromise = null;
 
-const {
-  connectTimeoutMs,
-  readyTimeoutMs,
-  reconnectStepMs: RECONNECT_STEP_MS,
-  reconnectMaxMs: RECONNECT_MAX_MS,
-} = config.cache;
+  constructor(settings) {
+    this.readyTimeoutMs = settings.readyTimeoutMs;
 
-const READY_TIMEOUT_MS = readyTimeoutMs;
+    this.client = createClient({
+      socket: {
+        host: settings.host,
+        port: settings.port,
+        connectTimeout: settings.connectTimeoutMs,
+        reconnectStrategy: (retries) =>
+          Math.min(retries * settings.reconnectStepMs, settings.reconnectMaxMs),
+      },
+      password: settings.password,
+      // Tanpa ini, perintah saat Redis mati akan menggantung di antrean
+      // sampai koneksi kembali — dan permintaan HTTP-nya ikut menggantung.
+      // Lebih baik gagal cepat supaya pemanggil bisa memutuskan sikapnya.
+      disableOfflineQueue: true,
+    });
 
-const redisClient = createClient({
-  socket: {
-    host: config.cache.host,
-    port: config.cache.port,
-    connectTimeout: connectTimeoutMs,
-    reconnectStrategy: (retries) =>
-      Math.min(retries * RECONNECT_STEP_MS, RECONNECT_MAX_MS),
-  },
-  password: config.cache.password,
-  disableOfflineQueue: true,
-});
-
-redisClient.on('error', (error) => {
-  console.error('[REDIS ERROR]', error.message || error.code || 'unknown');
-});
-
-let connectPromise = null;
-
-const connectRedis = async () => {
-  if (redisClient.isReady) {
-    return;
-  }
-
-  if (!redisClient.isOpen && !connectPromise) {
-    connectPromise = redisClient.connect().finally(() => {
-      connectPromise = null;
+    this.client.on('error', (error) => {
+      console.error('[REDIS ERROR]', error.message || error.code || 'unknown');
     });
   }
 
-  if (connectPromise) {
-    await connectPromise;
+  async connect() {
+    if (this.client.isReady) {
+      return;
+    }
+
+    if (!this.client.isOpen && !this.#connectPromise) {
+      this.#connectPromise = this.client.connect().finally(() => {
+        this.#connectPromise = null;
+      });
+    }
+
+    if (this.#connectPromise) {
+      await this.#connectPromise;
+    }
+
+    if (this.client.isReady) {
+      return;
+    }
+
+    // Menunggu 'ready' bisa menggantung selamanya kalau server tidak pernah
+    // menjawab, jadi ia dilombakan dengan batas waktu.
+    const readyTimeout = new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Redis belum siap dalam ${this.readyTimeoutMs} ms`)),
+        this.readyTimeoutMs
+      );
+
+      timer.unref();
+    });
+
+    await Promise.race([once(this.client, 'ready'), readyTimeout]);
   }
 
-  if (redisClient.isReady) {
-    return;
+  close() {
+    return this.client.quit().catch(() => {});
   }
 
-  const readyTimeout = new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Redis belum siap dalam ${READY_TIMEOUT_MS} ms`)),
-      READY_TIMEOUT_MS
-    );
+  /** Perintah yang dipakai repository. Diteruskan apa adanya. */
+  get(key) {
+    return this.client.get(key);
+  }
 
-    timer.unref();
-  });
+  set(key, value, options) {
+    return this.client.set(key, value, options);
+  }
 
-  await Promise.race([once(redisClient, 'ready'), readyTimeout]);
-};
+  del(key) {
+    return this.client.del(key);
+  }
 
-module.exports = { redisClient, connectRedis };
+  exists(key) {
+    return this.client.exists(key);
+  }
+
+  incr(key) {
+    return this.client.incr(key);
+  }
+
+  ping() {
+    return this.client.ping();
+  }
+
+  keys(pattern) {
+    return this.client.keys(pattern);
+  }
+
+  /**
+   * Dibutuhkan express-rate-limit, yang mengirim perintah Redis mentah.
+   * Ia juga memastikan koneksi siap lebih dulu — pembatas laju dipasang saat
+   * route didefinisikan, jauh sebelum server memanggil connect().
+   */
+  async sendCommand(args) {
+    await this.connect();
+
+    return this.client.sendCommand(args);
+  }
+}
+
+module.exports = { CacheClient };

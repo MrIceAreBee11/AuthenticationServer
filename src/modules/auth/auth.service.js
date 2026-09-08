@@ -1,22 +1,28 @@
+/**
+ * BERKAS INI: aturan login, pembaruan sesi, dan logout.
+ *
+ * KENAPA DI modules/auth/: seluruh isinya hanya dipakai fitur autentikasi.
+ * Berkas yang melayani satu fitur tinggal di dalam fitur itu, supaya batas
+ * antar fitur terbaca dari struktur folder.
+ */
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
 const AppError = require('../../utils/AppError');
-const { config } = require('../../config');
-const { signAccessToken, createOpaqueToken } = require('../../utils/token');
-const { userRepository } = require('../../repositories/user.repository');
-const {
-  tokenDenylistRepository,
-} = require('../../repositories/tokenDenylist.repository');
-const {
-  refreshTokenRepository,
-} = require('../../repositories/refreshToken.repository');
 
 /**
  * Hash asli dari string acak yang tidak pernah menjadi password siapa pun.
+ *
  * Dipakai agar percobaan login dengan email tak terdaftar memakan waktu yang
  * sama dengan email terdaftar. Tanpa ini, selisih waktu responsnya sendiri
  * sudah membocorkan email mana yang ada di sistem.
+ *
+ * COST FACTOR-nya (angka 12 setelah $2b$) WAJIB sama dengan
+ * BCRYPT_SALT_ROUNDS. Kalau berbeda, perbandingan tiruan ini lebih cepat
+ * daripada yang sungguhan dan celah waktunya terbuka lagi. Container
+ * menyuntikkan hash yang dihitung dari konfigurasi berlaku; nilai di bawah
+ * hanya cadangan untuk pengujian, dan ada unit test yang menjaga keduanya
+ * tetap sepadan.
  */
 const DUMMY_PASSWORD_HASH =
   '$2b$12$y8mnV4olFFifO8MOrq4AjOFM/mRzYnSAHz.CDpc9FhAoOx4cfCpAK';
@@ -31,13 +37,19 @@ const PESAN_REFRESH_TIDAK_VALID = 'Refresh token tidak valid. Silakan login kemb
 
 class AuthService {
   constructor({
-    users = userRepository,
-    denylist = tokenDenylistRepository,
-    refreshTokens = refreshTokenRepository,
-  } = {}) {
+    users,
+    denylist,
+    refreshTokens,
+    tokens,
+    ttlSeconds,
+    dummyPasswordHash = DUMMY_PASSWORD_HASH,
+  }) {
     this.users = users;
     this.denylist = denylist;
     this.refreshTokens = refreshTokens;
+    this.tokens = tokens;
+    this.ttlSeconds = ttlSeconds;
+    this.dummyPasswordHash = dummyPasswordHash;
   }
 
   /**
@@ -45,13 +57,13 @@ class AuthService {
    * Nilai yang dikembalikan adalah token asli; yang tersimpan hash-nya.
    */
   async #issueRefreshToken(userId, familyId) {
-    const plainToken = createOpaqueToken();
+    const plainToken = this.tokens.createOpaqueToken();
 
     await this.refreshTokens.create({
       plainToken,
       userId,
       familyId,
-      expiresAt: new Date(Date.now() + config.token.refreshTtlSeconds * 1000),
+      expiresAt: new Date(Date.now() + this.ttlSeconds * 1000),
     });
 
     return plainToken;
@@ -66,7 +78,7 @@ class AuthService {
 
     const isPasswordValid = user
       ? await user.comparePassword(password)
-      : await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+      : await bcrypt.compare(password, this.dummyPasswordHash);
 
     // Pesan sengaja seragam untuk email tak terdaftar maupun password salah,
     // agar tidak dapat dipakai memetakan daftar pengguna.
@@ -82,7 +94,7 @@ class AuthService {
 
     await this.users.update(user, { lastLoginAt: new Date() });
 
-    const { token } = signAccessToken(user.id);
+    const { token } = this.tokens.signAccessToken(user.id);
 
     // Setiap login memulai rangkaian sesi baru dengan penandanya sendiri.
     // Dengan begitu logout di satu perangkat tidak menyentuh perangkat lain.
@@ -152,7 +164,7 @@ class AuthService {
     await this.refreshTokens.revoke(stored);
 
     const rotated = await this.#issueRefreshToken(user.id, stored.familyId);
-    const { token } = signAccessToken(user.id);
+    const { token } = this.tokens.signAccessToken(user.id);
 
     await this.refreshTokens.deleteExpired(user.id);
 
@@ -205,4 +217,4 @@ class AuthService {
   }
 }
 
-module.exports = { AuthService, authService: new AuthService() };
+module.exports = { AuthService };

@@ -1,5 +1,7 @@
 const { mock } = require('node:test');
 
+const { TokenService } = require('../../src/utils/token');
+
 /**
  * Objek palsu untuk seluruh dependensi lapisan service.
  *
@@ -247,6 +249,38 @@ const fakeCache = ({ fail = () => false, initial = {} } = {}) => {
   };
 };
 
+/**
+ * TokenService sungguhan, bukan palsu.
+ *
+ * Ia murni — hanya kriptografi dan JWT, tanpa satu pun I/O — jadi memalsukannya
+ * berarti menguji tiruannya. Yang dipakai di sini adalah kunci uji, bukan kunci
+ * asli, dan itu justru membuktikan bahwa kunci memang masuk lewat constructor.
+ */
+const testTokenService = (overrides = {}) =>
+  new TokenService({
+    secret: 'kunci-uji-yang-panjangnya-lebih-dari-32-karakter',
+    accessTtlSeconds: 900,
+    opaqueBytes: 32,
+    ...overrides,
+  });
+
+/** Kebijakan password untuk pengujian; nilainya sama dengan bawaan skema. */
+const testPasswordPolicy = (overrides = {}) => ({
+  minLength: 12,
+  saltRounds: 12,
+  resetTtlSeconds: 900,
+  ...overrides,
+});
+
+/** Pembungkus transaksi palsu: jalankan callback tanpa transaksi sungguhan. */
+const fakeDatabase = ({ log = createLog() } = {}) => ({
+  log,
+  runInTransaction: logged(log, 'database.runInTransaction', async (callback) =>
+    callback(null)
+  ),
+  query: logged(log, 'database.query', async () => []),
+});
+
 /** Objek res palsu yang merekam status dan isi jawaban. */
 const fakeResponse = () => {
   const res = {
@@ -274,6 +308,9 @@ const silenceErrorLog = () => mock.method(console, 'error', () => {});
 const silenceInfoLog = () => mock.method(console, 'log', () => {});
 
 module.exports = {
+  testTokenService,
+  testPasswordPolicy,
+  fakeDatabase,
   createLog,
   captureError,
   fakeUser,

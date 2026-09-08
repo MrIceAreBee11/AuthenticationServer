@@ -1,24 +1,28 @@
+/**
+ * BERKAS INI: penerjemah HTTP untuk seluruh endpoint autentikasi.
+ *
+ * KENAPA DI modules/auth/: isinya hanya melayani fitur ini.
+ *
+ * KENAPA ANTREAN DISUNTIKKAN, BUKAN DI-IMPORT: berkas ini dulu meng-require
+ * publish() langsung dari src/queue. Akibatnya controller terikat pada RabbitMQ
+ * dan tidak bisa diuji tanpa broker hidup, padahal yang benar-benar ia
+ * butuhkan hanya "sesuatu yang bisa dititipi pesan".
+ */
 const AppError = require('../../utils/AppError');
 const { successResponse } = require('../../utils/response');
-const { config } = require('../../config');
-const { QUEUES, publish } = require('../../queue');
-const { authService } = require('./auth.service');
-const { passwordService } = require('./password.service');
-const { permissionService } = require('../../services/permission.service');
+const { QUEUES } = require('../../constants/cacheKeys');
 
 /**
  * Method ditulis sebagai class field bergaya arrow agar `this` tetap terikat
  * ketika method-nya diserahkan langsung ke router sebagai handler.
  */
 class AuthController {
-  constructor({
-    auth = authService,
-    passwords = passwordService,
-    permissions = permissionService,
-  } = {}) {
+  constructor({ auth, passwords, permissions, queue, appUrl }) {
     this.auth = auth;
     this.passwords = passwords;
     this.permissions = permissions;
+    this.queue = queue;
+    this.appUrl = appUrl;
   }
 
   login = async (req, res) => {
@@ -90,10 +94,10 @@ class AuthController {
     const result = await this.passwords.requestReset({ email });
 
     if (result) {
-      const resetUrl = `${config.app.url}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
+      const resetUrl = `${this.appUrl}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
 
       try {
-        await publish(QUEUES.PASSWORD_RESET_EMAIL, {
+        await this.queue.publish(QUEUES.PASSWORD_RESET_EMAIL, {
           to: result.user.email,
           fullName: result.user.fullName,
           resetUrl,
@@ -130,4 +134,4 @@ class AuthController {
   };
 }
 
-module.exports = { AuthController, authController: new AuthController() };
+module.exports = { AuthController };

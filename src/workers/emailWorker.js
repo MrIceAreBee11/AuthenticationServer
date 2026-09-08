@@ -1,96 +1,135 @@
+/**
+ * BERKAS INI: proses terpisah yang mengambil pesan dari antrean lalu mengirim
+ * email reset password.
+ *
+ * KENAPA PROSES SENDIRI, BUKAN DI DALAM API: pengiriman email lewat SMTP bisa
+ * memakan beberapa detik dan kadang gagal. Kalau ia dijalankan di dalam
+ * permintaan HTTP, pengguna menunggu selama itu — dan endpoint lupa password
+ * jadi bisa dipakai mengukur email mana yang terdaftar dari lamanya jawaban.
+ *
+ * KENAPA DI workers/: ia punya titik masuk sendiri dan siklus hidupnya
+ * terpisah dari API. Mematikan worker tidak mematikan API, dan sebaliknya —
+ * pesan yang belum terkirim menunggu di antrean sampai worker hidup lagi.
+ *
+ * KENAPA CLASS: sebelumnya berkas ini serangkaian fungsi lepas yang mengimpor
+ * config dan koneksi antrean langsung, jadi tidak ada bagian yang bisa diuji
+ * tanpa broker dan server SMTP sungguhan.
+ *
+ * KENAPA PESAN RUSAK DIBUANG, BUKAN DIKEMBALIKAN: pesan yang tidak dapat
+ * diparse akan selalu gagal diparse. Mengembalikannya ke antrean membuatnya
+ * dicoba tanpa henti dan memblokir seluruh antrean di belakangnya.
+ */
 const nodemailer = require('nodemailer');
 
 const { config } = require('../config');
-const { QUEUES, connectQueue, closeQueue } = require('../queue');
+const { MessageQueue } = require('../queue');
+const { QUEUES } = require('../constants/cacheKeys');
+const { SECONDS } = require('../constants/units');
 
-// Tidak ada lagi daftar "variabel SMTP wajib" di sini. Dulu ada, dan itu
-// berarti ada dua sumber kebenaran untuk pertanyaan yang sama — daftar di
-// worker bisa berbeda isi dari daftar di config, dan yang ketinggalan baru
-// terasa saat email gagal terkirim. Sekarang skema env yang menjaminnya, dan
-// worker tidak akan pernah sampai ke titik ini kalau konfigurasinya kurang.
-const buildTransporter = () =>
-  nodemailer.createTransport({
+const buildResetEmail = ({ fullName, resetUrl }, ttlSeconds) => {
+  const minutes = Math.round(ttlSeconds / SECONDS.MINUTE);
+
+  return {
+    subject: 'Reset Password Akun Anda',
+    text: `Halo ${fullName},\n\nBuka tautan berikut untuk mengatur ulang password Anda:\n${resetUrl}\n\nTautan ini berlaku ${minutes} menit dan hanya dapat digunakan sekali.\nJika Anda tidak meminta reset password, abaikan email ini.`,
+    html: `<p>Halo <strong>${fullName}</strong>,</p>
+<p>Buka tautan berikut untuk mengatur ulang password Anda:</p>
+<p><a href="${resetUrl}">Reset Password</a></p>
+<p>Tautan ini berlaku <strong>${minutes} menit</strong> dan hanya dapat digunakan sekali.</p>
+<p>Jika Anda tidak meminta reset password, abaikan email ini.</p>`,
+  };
+};
+
+class EmailWorker {
+  constructor({ queue, mailer, mail, resetTtlSeconds }) {
+    this.queue = queue;
+    this.mailer = mailer;
+    this.mail = mail;
+    this.resetTtlSeconds = resetTtlSeconds;
+  }
+
+  #parse(message, channel) {
+    try {
+      return JSON.parse(message.content.toString());
+    } catch (error) {
+      console.error('[WORKER] pesan tidak dapat diparse, dibuang:', error.message);
+      channel.nack(message, false, false);
+
+      return null;
+    }
+  }
+
+  /**
+   * Pesan baru di-ack SETELAH email benar-benar terkirim. Kalau di-ack lebih
+   * dulu, worker yang mati di tengah pengiriman membuat pesannya hilang
+   * padahal emailnya belum sampai.
+   */
+  #handle = async (message, channel) => {
+    if (!message) {
+      return;
+    }
+
+    const payload = this.#parse(message, channel);
+
+    if (!payload) {
+      return;
+    }
+
+    try {
+      await this.mailer.sendMail({
+        from: this.mail.from,
+        to: payload.to,
+        ...buildResetEmail(payload, this.resetTtlSeconds),
+      });
+
+      console.log(`[WORKER] email reset terkirim ke ${payload.to}`);
+      channel.ack(message);
+    } catch (error) {
+      console.error(`[WORKER] gagal mengirim ke ${payload.to}:`, error.message);
+      channel.nack(message, false, false);
+    }
+  };
+
+  async start() {
+    await this.mailer.verify();
+    console.log('Koneksi SMTP berhasil');
+
+    // prefetch 1: satu pesan sekaligus. Worker tidak boleh menarik seratus
+    // pesan lalu memegangnya sementara SMTP-nya lambat.
+    await this.queue.consume(QUEUES.PASSWORD_RESET_EMAIL, this.#handle, { prefetch: 1 });
+
+    console.log(`Worker siap, menunggu pesan di "${QUEUES.PASSWORD_RESET_EMAIL}"`);
+  }
+
+  async shutdown(signal) {
+    console.log(`\n${signal} diterima, menutup worker...`);
+
+    await this.queue.close().catch((error) => {
+      console.error('[WORKER] gagal menutup koneksi:', error.message);
+    });
+
+    process.exit(0);
+  }
+}
+
+const worker = new EmailWorker({
+  queue: new MessageQueue(config.queue.url),
+  mailer: nodemailer.createTransport({
     host: config.mail.host,
     port: config.mail.port,
     secure: config.mail.secure,
     auth: { user: config.mail.user, pass: config.mail.password },
-  });
-
-const buildResetEmail = ({ fullName, resetUrl }) => ({
-  subject: 'Reset Password Akun Anda',
-  text: `Halo ${fullName},\n\nBuka tautan berikut untuk mengatur ulang password Anda:\n${resetUrl}\n\nTautan ini berlaku 15 menit dan hanya dapat digunakan sekali.\nJika Anda tidak meminta reset password, abaikan email ini.`,
-  html: `<p>Halo <strong>${fullName}</strong>,</p>
-<p>Buka tautan berikut untuk mengatur ulang password Anda:</p>
-<p><a href="${resetUrl}">Reset Password</a></p>
-<p>Tautan ini berlaku <strong>15 menit</strong> dan hanya dapat digunakan sekali.</p>
-<p>Jika Anda tidak meminta reset password, abaikan email ini.</p>`,
+  }),
+  mail: config.mail,
+  resetTtlSeconds: config.password.resetTtlSeconds,
 });
 
-const startWorker = async () => {
-  const transporter = buildTransporter();
+process.on('SIGINT', () => worker.shutdown('SIGINT'));
+process.on('SIGTERM', () => worker.shutdown('SIGTERM'));
 
-  await transporter.verify();
-  console.log('Koneksi SMTP berhasil');
-
-  const channel = await connectQueue();
-  console.log('Koneksi RabbitMQ berhasil');
-
-  await channel.prefetch(1);
-
-  await channel.consume(
-    QUEUES.PASSWORD_RESET_EMAIL,
-    async (message) => {
-      if (!message) {
-        return;
-      }
-
-      let payload;
-
-      try {
-        payload = JSON.parse(message.content.toString());
-      } catch (error) {
-        console.error('[WORKER] pesan tidak dapat diparse, dibuang:', error.message);
-        return channel.nack(message, false, false);
-      }
-
-      try {
-        const email = buildResetEmail(payload);
-
-        await transporter.sendMail({
-          from: config.mail.from,
-          to: payload.to,
-          ...email,
-        });
-
-        console.log(`[WORKER] email reset terkirim ke ${payload.to}`);
-        return channel.ack(message);
-      } catch (error) {
-        console.error(`[WORKER] gagal mengirim ke ${payload.to}:`, error.message);
-        return channel.nack(message, false, false);
-      }
-    },
-    { noAck: false }
-  );
-
-  console.log(`Worker siap, menunggu pesan di "${QUEUES.PASSWORD_RESET_EMAIL}"`);
-};
-
-const shutdown = async (signal) => {
-  console.log(`\n${signal} diterima, menutup worker...`);
-
-  try {
-    await closeQueue();
-  } catch (error) {
-    console.error('[WORKER] gagal menutup koneksi:', error.message);
-  }
-
-  process.exit(0);
-};
-
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-
-startWorker().catch((error) => {
+worker.start().catch((error) => {
   console.error('Worker gagal dijalankan:', error.message);
   process.exit(1);
 });
+
+module.exports = { EmailWorker };

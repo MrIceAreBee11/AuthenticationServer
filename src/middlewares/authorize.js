@@ -1,60 +1,81 @@
-const AppError = require('../utils/AppError');
-const { permissionService } = require('../services/permission.service');
-
 /**
- * Setiap nama izin yang diminta oleh route dicatat di sini saat route
- * didefinisikan, yaitu ketika aplikasi dimuat. Isinya menjadi daftar
- * "izin apa saja yang benar-benar dipakai kode" tanpa perlu dirawat manusia.
+ * BERKAS INI: pemeriksaan "boleh tidak Anda melakukan ini".
  *
- * server.js membandingkan daftar ini dengan isi tabel permissions saat start.
- * Kalau ada yang tidak cocok, aplikasi menolak menyala — jauh lebih baik
- * daripada endpoint yang menjawab 403 selamanya tanpa penjelasan.
+ * KENAPA TERPISAH DARI authenticate: keduanya menjawab pertanyaan berbeda.
+ * Autentikasi menjawab "siapa Anda", otorisasi menjawab "apa hak Anda". Route
+ * yang cukup butuh token sah memakai yang pertama saja, dan memisahkannya
+ * membuat itu terbaca langsung dari definisi route.
+ *
+ * KENAPA CLASS SEKARANG: berkas ini dulu menyimpan `const
+ * requiredPermissionRegistry = new Set()` di module scope. Isinya menumpuk
+ * seumur proses dan tidak dapat direset antar berkas pengujian, jadi satu tes
+ * mencemari tes berikutnya. Sekarang ia field instance. Selain itu
+ * permissionService dulu di-require langsung, sehingga otorisasi tidak bisa
+ * diuji tanpa Redis dan PostgreSQL hidup.
+ *
+ * REGISTRI IZIN: setiap nama izin yang diminta route dicatat saat route
+ * didefinisikan, yaitu ketika aplikasi dimuat. Hasilnya daftar "izin apa saja
+ * yang benar-benar dipakai kode", tanpa perlu dirawat manusia. server.js
+ * membandingkannya dengan isi tabel permissions saat start; kalau ada yang
+ * tidak cocok, aplikasi menolak menyala — jauh lebih baik daripada endpoint
+ * yang menjawab 403 selamanya tanpa penjelasan.
  */
-const requiredPermissionRegistry = new Set();
+const AppError = require('../utils/AppError');
 
-const authorize = (...requiredPermissions) => {
-  if (requiredPermissions.length === 0) {
-    throw new Error('authorize() harus dipanggil dengan minimal satu permission');
+class AuthorizeMiddleware {
+  #required = new Set();
+
+  constructor({ permissions }) {
+    this.permissions = permissions;
   }
 
-  requiredPermissions.forEach((permission) => {
-    // Menangkap authorize(PERMISSIONS.SALAH_KETIK) yang bernilai undefined.
-    // Tanpa pemeriksaan ini, salah ketik hanya menghasilkan 403 yang senyap.
-    if (typeof permission !== 'string' || permission.trim().length === 0) {
-      throw new Error(
-        `authorize() menerima nama izin yang tidak valid (${JSON.stringify(permission)}). ` +
-          'Kemungkinan salah ketik pada konstanta PERMISSIONS.'
-      );
+  /**
+   * Menangkap authorize(PERMISSIONS.SALAH_KETIK) yang bernilai undefined.
+   * Tanpa pemeriksaan ini, salah ketik hanya menghasilkan 403 yang senyap —
+   * dan senyapnya bertahan sampai ada yang mengeluh.
+   */
+  #record(names) {
+    if (names.length === 0) {
+      throw new Error('authorize() harus dipanggil dengan minimal satu permission');
     }
 
-    requiredPermissionRegistry.add(permission);
-  });
+    names.forEach((name) => {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        throw new Error(
+          `authorize() menerima nama izin yang tidak valid (${JSON.stringify(name)}). ` +
+            'Kemungkinan salah ketik pada konstanta PERMISSIONS.'
+        );
+      }
 
-  return async (req, res, next) => {
-    if (!req.user) {
-      throw new Error('authorize() harus dipasang setelah authenticate()');
-    }
+      this.#required.add(name);
+    });
+  }
 
-    const ownedPermissions = await permissionService.getUserPermissions(req.user.id);
+  /** Pabrik middleware: dipanggil saat route didefinisikan. */
+  require(...names) {
+    this.#record(names);
 
-    const missingPermissions = requiredPermissions.filter(
-      (permission) => !ownedPermissions.includes(permission)
-    );
+    return async (req, res, next) => {
+      if (!req.user) {
+        throw new Error('authorize() harus dipasang setelah authenticate()');
+      }
 
-    if (missingPermissions.length > 0) {
-      throw new AppError(
-        'Anda tidak memiliki izin untuk mengakses sumber daya ini',
-        403
-      );
-    }
+      const owned = await this.permissions.getUserPermissions(req.user.id);
 
-    req.permissions = ownedPermissions;
+      if (names.some((name) => !owned.includes(name))) {
+        throw new AppError('Anda tidak memiliki izin untuk mengakses sumber daya ini', 403);
+      }
 
-    return next();
-  };
-};
+      req.permissions = owned;
 
-/** Daftar izin yang dipakai seluruh route yang sudah termuat. */
-authorize.getRequiredPermissions = () => [...requiredPermissionRegistry];
+      return next();
+    };
+  }
 
-module.exports = authorize;
+  /** Daftar izin yang dipakai seluruh route yang sudah termuat. */
+  get requiredPermissions() {
+    return [...this.#required];
+  }
+}
+
+module.exports = { AuthorizeMiddleware };

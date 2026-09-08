@@ -1,23 +1,32 @@
+/**
+ * BERKAS INI: alamat endpoint role.
+ *
+ * KENAPA PABRIK, BUKAN ROUTER SIAP PAKAI: router lama dibuat sebagai efek
+ * samping saat berkas di-require, dan ia mengambil controller dari singleton
+ * yang diekspor modul. Sekarang ia menerima container, sehingga satu-satunya
+ * tempat yang tahu implementasi konkret tetap src/container.js.
+ *
+ * ISINYA SENGAJA HANYA URUTAN: alamat, rantai middleware, dan handler. Tidak
+ * ada satu pun `if` atas data bisnis di sini — begitu ada, ia milik service.
+ */
 const { Router } = require('express');
 
-const { rolesController } = require('./roles.controller');
-const authenticate = require('../../middlewares/authenticate');
-const authorize = require('../../middlewares/authorize');
 const { PERMISSIONS } = require('../../constants/permissions');
 
-const router = Router();
+const buildRolesRoutes = ({ controllers, authenticate, authorize }) => {
+  const router = Router();
+  const roles = controllers.roles;
+  const requireToken = authenticate.handle;
+  const canUpdate = authorize.require(PERMISSIONS.ROLES_UPDATE);
 
-router.get('/', authenticate, authorize(PERMISSIONS.ROLES_READ), rolesController.list);
-router.post('/', authenticate, authorize(PERMISSIONS.ROLES_CREATE), rolesController.create);
-router.get('/:id', authenticate, authorize(PERMISSIONS.ROLES_READ), rolesController.getById);
-router.patch('/:id', authenticate, authorize(PERMISSIONS.ROLES_UPDATE), rolesController.update);
-router.delete('/:id', authenticate, authorize(PERMISSIONS.ROLES_DELETE), rolesController.remove);
+  router.get('/', requireToken, authorize.require(PERMISSIONS.ROLES_READ), roles.list);
+  router.post('/', requireToken, authorize.require(PERMISSIONS.ROLES_CREATE), roles.create);
+  router.get('/:id', requireToken, authorize.require(PERMISSIONS.ROLES_READ), roles.getById);
+  router.patch('/:id', requireToken, canUpdate, roles.update);
+  router.delete('/:id', requireToken, authorize.require(PERMISSIONS.ROLES_DELETE), roles.remove);
+  router.put('/:id/permissions', requireToken, canUpdate, roles.setPermissions);
 
-router.put(
-  '/:id/permissions',
-  authenticate,
-  authorize(PERMISSIONS.ROLES_UPDATE),
-  rolesController.setPermissions
-);
+  return router;
+};
 
-module.exports = router;
+module.exports = { buildRolesRoutes };

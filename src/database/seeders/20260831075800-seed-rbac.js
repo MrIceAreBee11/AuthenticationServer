@@ -1,6 +1,26 @@
 'use strict';
 
 /**
+ * BERKAS INI: seeder yang mengisi role beserta pemetaan izinnya.
+ *
+ * KENAPA DI database/seeders/: ia mengisi data, bukan mengubah struktur.
+ *
+ * KENAPA IZIN TIDAK LAGI DISISIPKAN DI SINI: katalog izin pindah ke migration,
+ * karena migration SELALU dijalankan saat deploy sedangkan seeder sering
+ * dilewati — isinya dianggap data contoh. Kalau seeder terlewat di sebuah
+ * lingkungan, tabel izin kosong dan seluruh endpoint terlindungi menolak semua
+ * orang, termasuk superadmin.
+ *
+ * KENAPA MEMAKAI TEKS LITERAL, BUKAN KONSTANTA: seeder dan migration adalah
+ * catatan sejarah. Kalau ia mengimpor berkas konstanta, perilakunya berubah
+ * secara retroaktif setiap kali konstanta itu diubah — padahal yang seharusnya
+ * ia gambarkan adalah keadaan pada saat ia pertama dijalankan.
+ *
+ * SATU PENGECUALIAN untuk superadmin: alih-alih menuliskan daftar izinnya, ia
+ * mengambil SELURUH baris yang ada di tabel izin. Dengan begitu izin yang
+ * ditambahkan lewat migration baru tidak mungkin terlewat.
+ */
+/**
  * Seeder ini hanya mengurus role dan pemetaan role ke izin.
  *
  * Katalog izin itu sendiri berada di migration add-permissions-catalog,

@@ -1,4 +1,19 @@
-const { redisClient } = require('../redis');
+/**
+ * BERKAS INI: daftar access token yang sudah dicabut lewat logout.
+ *
+ * KENAPA DI repositories/: satu-satunya lapisan yang boleh menyentuh klien
+ * Redis. Yang memakainya — service logout dan middleware autentikasi — tidak
+ * tahu apa pun tentang bentuk kuncinya.
+ *
+ * KENAPA HARUS ADA DAFTAR INI: access token berupa JWT, yang dapat diperiksa
+ * tanpa menyentuh penyimpanan. Konsekuensinya ia tidak punya tempat untuk
+ * ditandai sebagai "sudah tidak berlaku". Daftar ini yang menyediakannya.
+ *
+ * KENAPA AWALAN KUNCINYA HANYA ADA DI SINI: dulu ia ditulis di dua berkas
+ * terpisah — service logout dan middleware autentikasi. Kalau salah satu
+ * diubah, token yang di-logout tetap diterima TANPA error apa pun: dicabut
+ * dengan kunci A, diperiksa dengan kunci B.
+ */
 
 /**
  * Daftar token yang sudah dicabut lewat logout.
@@ -13,7 +28,7 @@ const { CACHE_KEYS } = require('../constants/cacheKeys');
 const KEY_PREFIX = CACHE_KEYS.TOKEN_DENYLIST;
 
 class TokenDenylistRepository {
-  constructor(cache = redisClient) {
+  constructor(cache) {
     this.cache = cache;
   }
 
@@ -40,7 +55,4 @@ class TokenDenylistRepository {
   }
 }
 
-module.exports = {
-  TokenDenylistRepository,
-  tokenDenylistRepository: new TokenDenylistRepository(),
-};
+module.exports = { TokenDenylistRepository };
