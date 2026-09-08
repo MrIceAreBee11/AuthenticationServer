@@ -79,7 +79,7 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm run test:unit` | 201 pengujian unit — tanpa Docker, tanpa database |
+| `npm run test:unit` | 261 pengujian unit — tanpa Docker, tanpa database |
 | `npm run test:e2e` | 27 pengujian end-to-end — perlu seluruh layanan hidup |
 | `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
 | `npm test` | Unit lalu end-to-end |
@@ -120,12 +120,16 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 | `middlewares/authenticate.js` | 100% | 100% |
 | `middlewares/authorize.js` | 100% | 100% |
 | `middlewares/errorHandler.js` | 100% | 94,1% |
+| `middlewares/requestLogger.js` | 100% | 100% |
+| `utils/logger.js` | 100% | 96,9% |
+| `utils/requestContext.js` | 100% | 100% |
+| `constants/errorCodes.js` | 100% | 100% |
 | `config/env.schema.js` | 97,7% | 93,3% |
 | `repositories/passwordResetToken.repository.js` | 100% | 100% |
 | `repositories/tokenDenylist.repository.js` | 100% | 100% |
 | `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
 
-Keseluruhan **98,5 persen baris dan 97,5 persen cabang**.
+Keseluruhan **98,9 persen baris dan 97,7 persen cabang**.
 
 Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
 Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
@@ -250,6 +254,13 @@ Tiga aturan yang ditegakkan, dan masing-masing dapat diperiksa dengan satu grep:
 | `process.env` hanya di `config/` | `grep -rn "process.env" src \| grep -v src/config` | 0 |
 | Sequelize & Redis hanya di `repositories/` | `grep -rn "findAll\|findOne" src \| grep -v repositories` | 0 |
 | Tidak ada singleton diekspor | `grep -rnE "module.exports.*: new [A-Z]" src` | 0 |
+| Tidak ada `console.*` | `grep -rnE "console\.(log\|error\|warn)" src` | 3 (lihat di bawah) |
+| Tidak ada `new AppError` langsung | `grep -rn "new AppError(" src \| grep -v utils/` | 0 |
+
+Tiga `console.*` yang tersisa sengaja dibiarkan: dua di `config/index.js`
+(logger sendiri dibangun dari konfigurasi yang barusan gagal divalidasi) dan
+satu di `config/database.js` (dibaca `sequelize-cli` sebagai proses terpisah
+yang tidak punya container, jadi tidak ada logger untuk disuntikkan).
 
 **Dependency injection.** Seluruh kolaborator masuk lewat constructor, dan
 satu-satunya tempat kata `new` dipanggil untuk merakitnya adalah
@@ -269,6 +280,33 @@ new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() })
 bisa disuntikkan dan tidak ada yang perlu dipalsukan, jadi class hanya
 menambah `new` tanpa menambah kemampuan. Berkas route berupa pabrik yang
 menerima container; berkas `constants/` murni data.
+
+**Log dan penelusuran.** Setiap permintaan mendapat `requestId` — dari header
+`x-request-id` klien bila ada, atau dibuat baru — yang dikembalikan lewat header
+yang sama. Nilainya masuk ke setiap baris log sepanjang permintaan itu, termasuk
+dari service dan repository beberapa lapis di bawah, lewat `AsyncLocalStorage`.
+Jadi satu nilai yang disebutkan pengguna langsung menunjuk seluruh jejaknya:
+
+```json
+{"time":"...","level":"warn","msg":"permintaan perlu diperhatikan",
+ "requestId":"a5b8ec13-...","component":"http","method":"POST",
+ "path":"/api/v1/auth/login","status":401,"durationMs":422,"userId":null}
+```
+
+Sepuluh nama field sensitif diredaksi otomatis, rekursif — `password`, `token`,
+`refreshToken`, `authorization`, dan seterusnya, termasuk yang bersarang di
+dalam objek.
+
+**Kode error.** Setiap jawaban gagal membawa `code` yang stabil di samping
+`message` yang untuk manusia. Ini yang boleh diandalkan klien:
+
+| Status | Kode | Artinya bagi klien |
+|---|---|---|
+| 401 | `TOKEN_EXPIRED` | perbarui token, lalu ulangi permintaannya |
+| 401 | `TOKEN_REVOKED` | jangan diulangi, minta pengguna login |
+| 401 | `PASSWORD_CHANGED` | sama, tetapi pesannya untuk pengguna berbeda |
+
+Ketiganya 401. Tanpa kode, klien harus menebak dari teks pesan.
 
 **Konfigurasi.** Seluruh nilai environment dibaca sekali di
 [src/config/index.js](src/config/index.js), divalidasi skema Zod, lalu dipotong

@@ -911,7 +911,8 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   p('Setiap berkas di dalam src/ sekarang dibuka dua penjelasan: BERKAS INI, yang menyatakan isinya dalam satu kalimat, dan KENAPA DI SINI, yang menjelaskan alasan penempatannya beserta keputusan yang tidak terbaca dari kodenya sendiri.'),
   p('Yang dicatat bukan apa yang dilakukan kode — itu sudah terbaca dari kodenya. Yang dicatat adalah alasan yang akan hilang: kenapa prefiks kunci Redis TIDAK boleh menjadi variabel environment padahal ia terlihat seperti konfigurasi, kenapa repository mengembalikan objek model dan bukan objek biasa, kenapa urutan hook normalisasi dan hashing tidak boleh ditukar, kenapa kegagalan Redis dilewati di satu tempat tetapi menjatuhkan permintaan di tempat lain.'),
 
-  h2('13.8 Yang Belum Dikerjakan, dan Kapan Sebaiknya'),
+  h2('13.8 Yang Belum Dikerjakan pada Tahap Ini'),
+  p('Catatan: tiga dari lima butir di bawah — pencatatan log terstruktur, kode error mesin, dan penanda pada token — sudah dikerjakan pada Bab 14. Daftar ini dibiarkan apa adanya karena ia menggambarkan keadaan pada saat audit dilakukan, dan urutan pengerjaannya justru bagian dari catatannya.'),
   table(
     ['Yang belum ada', 'Kapan sebaiknya ditambahkan'],
     [
@@ -938,6 +939,120 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
     'Instance diekspor module scope : 0',
     'State mutable module scope     : 0',
   ]),
+  br(),
+
+  /* ═══════════════════ BAB 14 ═══════════════════ */
+  h1('BAB 14 — Keteramatan dan Kontrak Error'),
+  p('Bab sebelumnya menutup temuan struktural. Yang tersisa dari audit adalah tiga hal yang menambah PERILAKU baru, bukan memindahkan struktur — dan karena itu masing-masing membutuhkan pengujian barunya sendiri sebelum dapat dipercaya.'),
+
+  h2('14.1 Empat Puluh Pemanggilan console'),
+  p('Seluruh pencatatan sebelumnya memakai console langsung, empat puluh titik. Tiga masalahnya bertumpuk.'),
+  num('Tidak dapat difilter. Log yang dikirim ke sistem pengumpul terpusat harus bisa dicari per field. Perintah pencarian teks bebas tidak dapat menjawab "tampilkan semua error milik permintaan X".'),
+  num('Tidak dapat dimatikan. Tidak ada tingkat kepentingan, jadi rincian pengembangan ikut tercetak di production bersama kejadian yang benar-benar penting.'),
+  num('Tidak dapat ditelusuri antar lapisan. Satu permintaan yang melewati middleware, service, dan repository menghasilkan baris log yang tersebar tanpa satu pun penanda yang menghubungkannya.'),
+
+  h3('Logger ditulis sendiri, dan alasannya'),
+  p('Yang dibutuhkan hanya empat tingkat kepentingan, penyembunyian field sensitif, dan kemampuan menurunkan logger anak berpenanda komponen. Seluruhnya sekitar delapan puluh baris. Jalur peningkatan ke pustaka siap pakai dicatat di dalam berkasnya beserta pemicunya: ia menulis lewat thread terpisah sehingga tidak menahan proses utama, dan itu baru terasa ketika volume log sudah tinggi.'),
+  p('Setiap komponen menerima logger anak yang membawa penandanya sendiri. Akibatnya pertanyaan seperti "tampilkan semua kegagalan Redis" menjadi satu penyaringan field, bukan pencarian teks yang bisa salah tangkap.'),
+
+  h3('Satu bug yang ditemukan pengujiannya sendiri'),
+  p('Penyembunyian field sensitif bekerja secara rekursif dengan batas kedalaman, supaya objek yang menunjuk dirinya sendiri tidak membuat logger ikut gagal. Versi pertamanya mengembalikan objeknya begitu batas tercapai — dan itu tidak menyelesaikan apa pun: pengubahan ke JSON tetap menabrak lingkaran yang sama.'),
+  quote('Logger adalah bagian yang paling harus dapat diandalkan. Ia tidak boleh menjadi penyebab kegagalan baru justru pada saat sedang mencatat kegagalan lain.'),
+  p('Perbaikannya mengembalikan penanda teks di batas kedalaman, bukan objeknya. Pengujian yang menemukannya ditulis lebih dulu daripada perbaikannya.'),
+
+  h2('14.2 Penanda Permintaan yang Menembus Seluruh Lapisan'),
+  p('Penanda permintaan dibuat di middleware paling awal, tetapi yang perlu mencantumkannya di log adalah service dan repository — beberapa lapisan di bawahnya. Meneruskannya lewat argumen berarti menambah satu parameter ke SETIAP method di sepanjang rantai, hanya untuk keperluan pencatatan.'),
+  p('Penyimpanan lokal per-alur bawaan Node memecahkan itu: nilainya disimpan di luar rantai argumen dan tetap terbawa melewati penantian asinkron, jadi tanda tangan method tidak perlu berubah sama sekali.'),
+  p('Variabel global tidak dapat dipakai untuk ini, dan alasannya sering terlewat. Node melayani banyak permintaan secara bersamaan dalam satu proses. Variabel global akan tertimpa oleh permintaan berikutnya di tengah penantian, dan log satu permintaan bercampur dengan penanda permintaan lain — kesalahan yang justru paling sulit dikenali karena hasilnya tetap terlihat masuk akal.'),
+  ...code([
+    '{"time":"...","level":"warn","msg":"permintaan perlu diperhatikan",',
+    ' "requestId":"a5b8ec13-...","component":"http","method":"POST",',
+    ' "path":"/api/v1/auth/login","status":401,"durationMs":422,"userId":null}',
+  ]),
+  caption('Gambar 14.1 — Satu baris yang sudah memuat status, durasi, dan penandanya'),
+  p('Penanda dari klien dihormati kalau dikirim, supaya jejaknya nyambung dengan proxy atau layanan pemanggil. Tetapi ia dipangkas dan disaring polanya lebih dulu: nilai ini masuk ke setiap baris log, jadi menerimanya apa adanya berarti pihak luar dapat menyuntikkan baris palsu ke dalam log — atau mengirim teks sepanjang satu megabyte yang ikut tersimpan berulang kali.'),
+  p('Pencatatan dilakukan saat permintaan SELESAI, bukan saat dimulai. Satu baris yang sudah memuat status dan durasinya jauh lebih berguna daripada dua baris yang harus dijodohkan sendiri. Tingkat kepentingannya mengikuti status: kegagalan server dicatat sebagai error, penolakan sebagai peringatan, sisanya sebagai informasi.'),
+
+  h3('Satu jenis pencatatan yang justru dihapus'),
+  p('Penanganan error terpusat sebelumnya mencatat SEMUA error, termasuk penolakan yang memang disengaja. Setelah pencatatan per permintaan ada, penolakan itu sudah tercatat sebagai status 4xx — jadi mencatatnya lagi berarti setiap 401 muncul dua kali.'),
+  quote('Log yang penuh kejadian normal sama tidak bergunanya dengan tidak ada log sama sekali: error yang sungguhan tenggelam di antaranya.'),
+
+  h2('14.3 Kode Error yang Dapat Dibaca Mesin'),
+  p('Sebelum ini, satu-satunya cara klien membedakan jenis kegagalan adalah mencocokkan teks pesannya. Rapuh dari dua arah sekaligus: pesan diperbaiki bahasanya dan klien langsung rusak, atau klien mencocokkan potongan teks yang ternyata muncul juga di pesan lain.'),
+  p('Yang paling terasa pada status yang sama dengan tindakan yang berbeda.'),
+  table(
+    ['Status', 'Kode', 'Artinya bagi klien'],
+    [
+      ['401', 'TOKEN_EXPIRED', 'Perbarui token, lalu ulangi permintaannya'],
+      ['401', 'TOKEN_REVOKED', 'Jangan diulangi, minta pengguna login'],
+      ['401', 'PASSWORD_CHANGED', 'Sama, tetapi pesannya untuk pengguna berbeda'],
+      ['403', 'ACCOUNT_INACTIVE', 'Hubungi administrator; mengulangi tidak menolong'],
+      ['403', 'SUPERADMIN_PROTECTED', 'Targetnya dilindungi, bukan izin pemanggil yang kurang'],
+    ],
+    [1400, 3400, 5026]
+  ),
+  p('Ketiga yang pertama sama-sama 401. Tanpa kode, klien harus menebaknya dari teks berbahasa Indonesia.'),
+
+  h3('Peta kode bawaan, dan kenapa ia perlu ada'),
+  p('Katalognya memuat dua puluh sembilan kode. Menambahkannya bisa berarti menyunting lima puluh titik penolakan sekaligus — pekerjaan mekanis yang besar dan rawan terlewat. Karena itu ada peta kode bawaan per status: titik yang kodenya membawa keterangan LEBIH dari statusnya menyebutkannya sendiri, sisanya cukup mewarisi.'),
+
+  h3('Enam subclass, dan kenapa bukan cukup satu'),
+  p('Angka 401 dan 403 gampang tertukar, dan tertukarnya bukan kesalahan kosmetik: pesan penolakan yang salah status justru mengonfirmasi hal yang seharusnya disembunyikan. Nama class membuat itu tidak lagi mungkin salah tulis.'),
+  ...code([
+    'SEBELUM  throw new AppError("Akun tidak aktif", 403);',
+    '                                               ^^^ mudah tertukar 401',
+    '',
+    'SESUDAH  throw new ForbiddenError("Akun tidak aktif", ACCOUNT_INACTIVE);',
+    '               ^^^^^^^^^^^^^^ statusnya melekat pada namanya',
+  ]),
+  caption('Gambar 14.2 — Status melekat pada nama class, bukan pada angka yang diketik'),
+
+  h2('14.4 Penanda Penerbit dan Penerima Token'),
+  p('Token sebelumnya hanya diverifikasi tanda tangannya. Itu tidak cukup begitu satu kunci rahasia dipakai lebih dari satu layanan: token yang diterbitkan layanan sebelah akan lolos apa adanya, dan sebaliknya token milik layanan ini dapat dipakai di tempat yang bukan tujuannya.'),
+  p('Keduanya sekarang dicantumkan dan diperiksa. Konsekuensinya disengaja dan perlu dicatat: SELURUH access token yang terbit sebelum perubahan ini menjadi tidak valid.'),
+  quote('Yang menyelamatkan penggunanya justru keputusan dari bab sebelumnya. Refresh token bukan JWT, jadi ia tidak terpengaruh — klien memperbaruinya sendiri dan tidak seorang pun perlu login ulang.'),
+
+  h2('14.5 Pembungkam console yang Dihapus dari Pengujian'),
+  p('Ada satu hal yang ikut membaik tanpa direncanakan. Sebelum ini, pengujian jalur kegagalan membungkam console supaya keluarannya tidak berisik — dan itu berarti tidak ada satu pun pemeriksaan atas APA yang dicatat.'),
+  p('Setelah logger disuntikkan, pembungkam itu diganti logger palsu yang merekam. Sekarang isinya dapat diperiksa, dan beberapa pengujian menjadi lebih tegas: kegagalan Redis pada middleware autentikasi bukan hanya harus menjawab 503, tetapi juga WAJIB tercatat — karena 503 tanpa jejak di log berarti tidak ada yang tahu Redis sedang bermasalah.'),
+
+  h2('14.6 Hasil'),
+  table(
+    ['', 'Sebelum bab ini', 'Sesudah'],
+    [
+      ['Pemanggilan console langsung', '40', '3 (pengecualian terdokumentasi)'],
+      ['Penanda korelasi permintaan', 'tidak ada', 'ada, menembus seluruh lapisan'],
+      ['Field sensitif diredaksi', 'tidak ada', '10 nama, rekursif'],
+      ['Kode error mesin', 'tidak ada', '29 kode'],
+      ['new AppError langsung', '50 titik', '0'],
+      ['Penanda penerbit token', 'tidak ada', 'dicantumkan dan diperiksa'],
+      ['Pengujian unit', '203', '261'],
+      ['Cakupan baris', '98,5%', '98,9%'],
+    ],
+    [2600, 2400, 3026]
+  ),
+  ...code([
+    'Pengujian unit                 : 261 lulus, 0 gagal',
+    'Pengujian end-to-end           : 27 lulus, 0 gagal',
+    'Cakupan baris                  : 98,9 persen (ambang 80)',
+    'Cakupan cabang                 : 97,7 persen (ambang 80)',
+    'Sapuan seluruh endpoint        : 26 dari 26, 0 gagal',
+    'Penanda dari klien             : dihormati dan dikembalikan lewat header',
+    'Tingkat log mengikuti status   : 5xx error, 4xx warn, sisanya info',
+    'Password di dalam log          : nol kemunculan',
+  ]),
+
+  h2('14.7 Yang Masih Belum Dikerjakan'),
+  table(
+    ['Yang belum ada', 'Kapan sebaiknya ditambahkan'],
+    [
+      ['Lapisan pemetaan keluaran yang eksplisit', 'Sekarang objek model langsung menjadi jawaban. Aman karena penyaring kolom rahasia melekat di model, tetapi itu satu penimpaan dari kebocoran'],
+      ['Validasi masukan berbasis skema di tepi controller', 'Ketika jumlah field per endpoint bertambah; pemeriksaan manual sekarang masih terbaca'],
+      ['Catatan audit setiap perubahan data', 'Ketika ada pertanyaan "siapa yang mengubah ini" yang harus dijawab, termasuk untuk percobaan yang ditolak'],
+      ['Penjamin idempotensi pada operasi tulis', 'Ketika ada klien yang mengulang permintaan otomatis saat jaringannya tersendat'],
+    ],
+    [3600, 5426]
+  ),
   br(),
 
   h1('Lampiran A — Daftar Endpoint'),

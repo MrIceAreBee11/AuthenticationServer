@@ -57,9 +57,8 @@ class ApiServer {
   }
 
   /**
-   * Tutup server lebih dulu agar request baru tidak masuk, baru setelah itu
-   * tutup koneksi ke resource lain. Request yang sedang berjalan tetap punya
-   * kesempatan menyelesaikan prosesnya.
+   * Graceful shutdown: stop terima incoming request terlebih dahulu,
+   * selesaikan inflight request, lalu tutup koneksi database/cache.
    */
   async shutdown(signal) {
     if (this.#shuttingDown) {
