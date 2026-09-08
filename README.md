@@ -14,6 +14,8 @@ Dilengkapi **antarmuka console** untuk memperagakan seluruh endpoint tanpa perlu
 - **Lupa password** — token acak berumur pendek di Redis, pengiriman email asinkron lewat RabbitMQ
 - **Profil** — data diri dan unggah foto avatar ke object storage
 - **Manajemen pengguna & role** — pembuatan akun oleh administrator, penetapan role, pengaturan izin
+- **Jejak audit** — 14 jenis perubahan data tercatat, termasuk percobaan yang ditolak
+- **Idempotensi** — percobaan ulang pada pembuatan pengguna dan role menerima jawaban aslinya, bukan 409
 - **Console** — antarmuka web yang mencakup seluruh 26 endpoint, lengkap dengan panel lalu lintas API
 
 ---
@@ -79,8 +81,8 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm run test:unit` | 261 pengujian unit — tanpa Docker, tanpa database |
-| `npm run test:e2e` | 27 pengujian end-to-end — perlu seluruh layanan hidup |
+| `npm run test:unit` | 354 pengujian unit — tanpa Docker, tanpa database |
+| `npm run test:e2e` | 34 pengujian end-to-end — perlu seluruh layanan hidup |
 | `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
 | `npm test` | Unit lalu end-to-end |
 
@@ -114,22 +116,26 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 |---|---|---|
 | `modules/auth/auth.service.js` | 100% | 100% |
 | `modules/auth/password.service.js` | 100% | 100% |
-| `services/permission.service.js` | 97,5% | 93,9% |
-| `utils/duration.js` | 100% | 100% |
-| `modules/roles/roles.service.js` | 92,1% | 95,8% |
-| `middlewares/authenticate.js` | 100% | 100% |
+| `services/audit.service.js` | 100% | 100% |
+| `services/permission.service.js` | 97,7% | 93,9% |
+| `modules/roles/roles.service.js` | 91,5% | 94,1% |
+| `mappers/user.mapper.js`, `mappers/role.mapper.js` | 100% | 100% |
+| `middlewares/validate.js` | 100% | 100% |
+| `middlewares/idempotency.js` | 100% | 95,8% |
+| `middlewares/authenticate.js` | 100% | 96,4% |
 | `middlewares/authorize.js` | 100% | 100% |
-| `middlewares/errorHandler.js` | 100% | 94,1% |
+| `middlewares/errorHandler.js` | 100% | 93,1% |
 | `middlewares/requestLogger.js` | 100% | 100% |
 | `utils/logger.js` | 100% | 96,9% |
-| `utils/requestContext.js` | 100% | 100% |
-| `constants/errorCodes.js` | 100% | 100% |
-| `config/env.schema.js` | 97,7% | 93,3% |
+| `utils/requestContext.js` | 89,3% | 100% |
+| `utils/duration.js`, `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
+| `config/env.schema.js` | 97,9% | 93,3% |
+| `constants/*` | 100% | 100% |
+| `repositories/idempotency.repository.js` | 100% | 100% |
 | `repositories/passwordResetToken.repository.js` | 100% | 100% |
 | `repositories/tokenDenylist.repository.js` | 100% | 100% |
-| `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
 
-Keseluruhan **98,9 persen baris dan 97,7 persen cabang**.
+Keseluruhan **98,7 persen baris dan 97,3 persen cabang**.
 
 Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
 Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
@@ -183,6 +189,7 @@ src/
 ├── server.js      titik masuk proses API
 ├── config/        SATU-SATUNYA tempat process.env dibaca (skema Zod)
 ├── constants/     data tetap: satuan, nama role, awalan kunci, izin
+├── mappers/       penentu field yang boleh keluar (daftar-yang-diizinkan)
 ├── utils/         fungsi murni + TokenService
 ├── database/      Database (koneksi + model), migration, seeder
 ├── redis/         CacheClient
@@ -251,10 +258,10 @@ Tiga aturan yang ditegakkan, dan masing-masing dapat diperiksa dengan satu grep:
 
 | Aturan | Perintah pemeriksa | Nilai sekarang |
 |---|---|---|
-| `process.env` hanya di `config/` | `grep -rn "process.env" src \| grep -v src/config` | 0 |
-| Sequelize & Redis hanya di `repositories/` | `grep -rn "findAll\|findOne" src \| grep -v repositories` | 0 |
+| `process.env` hanya di `config/` | `grep -rn "process.env" src \| grep -v src/config` | 3, seluruhnya di dalam komentar |
+| Sequelize hanya di `repositories/` | `grep -rn "models\.\|sequelize\." src \| grep -vE "repositories\|database\|container"` | 0 |
 | Tidak ada singleton diekspor | `grep -rnE "module.exports.*: new [A-Z]" src` | 0 |
-| Tidak ada `console.*` | `grep -rnE "console\.(log\|error\|warn)" src` | 3 (lihat di bawah) |
+| Tidak ada `console.*` | `grep -rnE "console\.(log\|error\|warn)" src` | 4: tiga pemanggilan (lihat di bawah) + satu komentar |
 | Tidak ada `new AppError` langsung | `grep -rn "new AppError(" src \| grep -v utils/` | 0 |
 
 Tiga `console.*` yang tersisa sengaja dibiarkan: dua di `config/index.js`
@@ -274,10 +281,10 @@ new AuthService({ users, denylist, refreshTokens, tokens, ttlSeconds })
 // dipakai di pengujian — objek palsu, tanpa satu pun layanan hidup
 new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() })
 ```
-
-**Yang tetap berupa fungsi, dan alasannya.** `utils/response.js` dan
+| `process.env` hanya di `config/` | `grep -rn "process.env" src | grep -v src/config` | 3, seluruhnya di dalam komentar |
+| Sequelize hanya di `repositories/` | `grep -rn "models.|sequelize." src | grep -vE "repositories|database|container"` | 0 |
 `utils/duration.js` murni — tanpa dependensi, tanpa keadaan. Tidak ada yang
-bisa disuntikkan dan tidak ada yang perlu dipalsukan, jadi class hanya
+| Tidak ada `console.*` | `grep -rnE "console.(log|error|warn)" src` | 4: tiga pemanggilan (lihat di bawah) + satu komentar |
 menambah `new` tanpa menambah kemampuan. Berkas route berupa pabrik yang
 menerima container; berkas `constants/` murni data.
 
@@ -315,6 +322,68 @@ sekaligus lalu keluar dengan kode 1 — bukan berhenti di variabel pertama.
 Lantai keamanan dipasang di skema: `BCRYPT_SALT_ROUNDS` minimal 10,
 `PASSWORD_MIN_LENGTH` minimal 12, `JWT_SECRET` minimal 32 karakter. Boleh
 diperketat, tidak boleh dilemahkan.
+
+**Kontrak keluaran.** Jawaban API tidak pernah berisi objek model apa adanya.
+Setiap field disebut satu per satu di [src/mappers/](src/mappers) — daftar
+yang-diizinkan, bukan daftar yang-dilarang. Bedanya terasa saat ada kolom baru:
+sebelumnya kolom itu ikut terkirim otomatis, sekarang ia tidak keluar sampai
+seseorang menuliskannya. Penulisan pemetaan ini menemukan dua field yang
+memang sudah terkirim tanpa pernah diputuskan: `avatarKey` (nama berkas
+internal di object storage) dan `passwordChangedAt` pada daftar pengguna.
+
+**Validasi masukan.** Lima belas skema Zod di `modules/*/*.schema.js`
+memeriksa bentuk data sebelum permintaannya menyentuh controller. Semuanya
+`.strict()`, jadi field yang tidak dikenal ditolak 400 — bukan diabaikan
+diam-diam, yang membuat klien salah tulis nama field menerima 200 yang tidak
+mengubah apa pun.
+
+Aturan yang nilainya berasal dari config tetap tinggal di service. Panjang
+minimal password contohnya: angkanya datang dari `PASSWORD_MIN_LENGTH`, jadi
+memeriksanya di skema berarti menuliskan angka itu dua kali.
+
+Hasil validasi ditaruh di `req.valid[source]`, tidak dituliskan kembali ke
+`req.query`. Di Express 5 `req.query` hanya bisa dibaca: penulisannya tidak
+menghasilkan error dan tidak berpengaruh, jadi nilai yang sudah dikonversi
+tipenya akan hilang tanpa jejak.
+
+**Jejak audit.** Empat belas jenis perubahan data tercatat di tabel
+`audit_logs`, termasuk **percobaan yang ditolak**. Yang terakhir itu bagian
+terpentingnya: sepuluh percobaan gagal terhadap akun superadmin adalah
+keterangan yang jauh lebih berguna daripada satu perubahan yang berhasil, dan
+jejak yang hanya menyimpan keberhasilan tidak memuatnya sama sekali.
+
+Pelaku dan `requestId` dibaca dari `AsyncLocalStorage`, bukan diteruskan lewat
+argumen — alternatifnya menambah dua parameter ke setiap method yang mengubah
+data, dan satu titik yang lupa meneruskannya menghasilkan baris audit tanpa
+pelaku yang tetap tersimpan seolah sah.
+
+Nama field yang berubah dicatat, nilainya tidak: jejak audit tidak boleh
+menjadi tempat kedua yang menyimpan data pribadi. Satu pengecualian yang
+disengaja — perubahan role menyimpan yang lama dan yang baru, karena tanpa
+keduanya pertanyaan "sejak kapan orang ini jadi administrator" tidak punya
+jawaban.
+
+Kegagalan menulis audit dicatat sebagai error tetapi tidak menggagalkan
+operasinya. Keputusan yang bisa diperdebatkan, jadi diuji secara eksplisit di
+`tests/unit/audit.service.test.js`.
+
+**Idempotensi.** `POST /users` dan `POST /roles` menerima header opsional
+`Idempotency-Key`. Yang dipecahkan bukan data ganda — `email` dan `name` sudah
+unik — melainkan bentuk jawaban pada percobaan ulang:
+
+| Percobaan | Tanpa header | Dengan header |
+|---|---|---|
+| Pertama | `201` | `201` |
+| Ulangan, jawaban pertama hilang | `409`, tampak gagal | `201` yang asli + `Idempotent-Replay: true` |
+| Ulangan tiba saat yang pertama masih berjalan | dua operasi tulis bersamaan | `409` |
+| Gagal, diperbaiki, lalu diulang | diproses ulang | diproses ulang |
+
+Pemesanan kuncinya memakai `SET NX` Redis, bukan `GET` lalu `SET`: dua
+permintaan yang datang bersamaan sama-sama melihat "belum ada" pada pola
+kedua, dan keduanya lanjut diproses. Cakupan kunci menyertakan id pengguna,
+metode, dan alamat endpoint — tanpa itu dua klien yang kebetulan memakai
+penanda sama akan saling menerima jawaban milik orang lain. Hanya jawaban 2xx
+yang disimpan; kunci yang permintaannya gagal dilepas kembali.
 
 ---
 

@@ -1055,6 +1055,129 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   ),
   br(),
 
+  /* ═══════════════════ BAB 15 ═══════════════════ */
+  h1('BAB 15 — Kontrak Keluaran, Validasi, dan Jejak Perubahan'),
+  p('Empat butir yang tercatat sebagai belum dikerjakan pada 14.7 dikerjakan di bab ini. Keempatnya berbagi satu sifat: masing-masing memindahkan sebuah jaminan dari "kebetulan masih benar" menjadi "tidak bisa lagi salah tanpa terlihat".'),
+
+  h2('15.1 Lapisan Pemetaan Keluaran'),
+  p('Sebelum bab ini, objek model Sequelize langsung menjadi isi jawaban. Kolom rahasia memang tidak ikut terkirim, tetapi alasannya rapuh: ada satu penyaring di dalam definisi model yang menghapusnya saat objek diubah menjadi JSON. Satu penimpaan pada penyaring itu, atau satu kolom baru yang lupa didaftarkan, dan kebocorannya terjadi tanpa satu pun pengujian yang gagal.'),
+  quote('Pertanyaan yang membedakan keduanya: kalau saya menambah kolom baru ke tabel users besok, apakah kolom itu ikut terkirim ke klien? Sebelumnya: ya, otomatis. Sesudahnya: tidak, sampai seseorang menuliskannya.'),
+  p('Pemetaan sekarang berbentuk daftar-yang-diizinkan, bukan daftar-yang-dilarang. Setiap field disebut satu per satu, dan yang tidak disebut tidak keluar.'),
+  ...code([
+    'SEBELUM  res.json({ data: { user } });        // seluruh isi model',
+    '',
+    'SESUDAH  res.json({ data: { user: toUserDto(user) } });',
+    '',
+    'const toUserDto = (user) => ({',
+    '  id, email, fullName, phone, isActive, lastLoginAt, createdAt,',
+    '  ...(user.roles && { roles: user.roles.map(toRoleSummary) }),',
+    '});',
+  ]),
+  caption('Gambar 15.1 — Field yang tidak disebut tidak ikut keluar'),
+
+  h3('Dua kebocoran yang ternyata sudah terjadi'),
+  p('Penulisan pemetaannya sendiri yang menemukannya. Field kunci berkas avatar di penyimpanan objek ikut terkirim pada setiap jawaban yang memuat pengguna — nama berkas internal yang tidak dibutuhkan klien mana pun dan justru memberi tahu bentuk penyimpanan di belakangnya. Dan waktu penggantian password terakhir ikut terkirim pada daftar pengguna, bukan hanya pada profil sendiri.'),
+  p('Keduanya bukan bocornya password. Tetapi keduanya adalah keterangan yang tidak pernah diputuskan untuk dibagikan — ia terkirim semata karena tidak ada yang pernah memilih daftar isinya.'),
+
+  h2('15.2 Validasi Berbasis Skema di Tepi Controller'),
+  p('Pemeriksaan masukan sebelumnya tersebar di dalam service, ditulis manual per field. Dua akibatnya.'),
+  num('Service mengerjakan dua hal sekaligus: memeriksa bentuk data dan menjalankan aturan bisnis. Dua urusan yang berubah karena alasan yang sama sekali berbeda.'),
+  num('Bentuk pesan kesalahannya tidak seragam. Satu endpoint menyebut nama field yang salah, endpoint lain hanya menyebut bahwa ada yang salah.'),
+  p('Lima belas skema di empat modul kini memeriksa bentuk data sebelum permintaannya menyentuh controller. Aturan yang bergantung pada konfigurasi — panjang minimal password, misalnya — tetap tinggal di service, karena nilainya berasal dari config dan bukan dari bentuk datanya.'),
+
+  h3('Mode ketat, dan kenapa ia yang dipilih'),
+  p('Setiap skema menolak field yang tidak dikenal, bukan mengabaikannya. Klien yang salah menulis nama field menerima 400 yang menyebutkan masalahnya, bukan 200 yang diam-diam tidak mengubah apa pun — kegagalan paling membingungkan yang bisa diberikan sebuah API.'),
+  p('Satu pembedaan yang perlu disebut: nomor telepon boleh bernilai kosong secara sengaja. Field yang tidak dikirim berarti "jangan diubah", sedangkan field yang dikirim bernilai kosong berarti "hapus isinya". Kalau keduanya diperlakukan sama, nomor telepon tidak akan pernah bisa dihapus lagi.'),
+
+  h3('Satu jebakan Express 5 yang ditemukan sebelum sempat merugikan'),
+  p('Rencana awalnya menuliskan kembali hasil validasi ke tempat asalnya, supaya nilai yang sudah dikonversi tipenya langsung terpakai. Untuk isi permintaan itu berhasil. Untuk parameter kueri tidak: di Express 5 ia hanya bisa dibaca. Penulisannya tidak menghasilkan error dan tidak berpengaruh apa pun — nilai yang sudah dikonversi hilang tanpa jejak, dan halaman ke berapa yang diminta klien akan kembali berbentuk teks.'),
+  p('Ditemukan dengan menguji dugaannya lebih dulu, sebelum menulis kodenya. Hasil validasi sekarang disimpan di tempat tersendiri, seragam untuk isi permintaan, parameter alamat, maupun parameter kueri.'),
+
+  h2('15.3 Jejak Audit Setiap Perubahan Data'),
+  p('Log permintaan dari Bab 14 menjawab "apa yang terjadi pada detik itu" dan berumur pendek. Yang tidak dijawabnya adalah "siapa yang mengubah baris ini, dan kapan" — pertanyaan yang muncul berbulan-bulan kemudian, ketika lognya sudah lama terhapus.'),
+  p('Empat belas jenis kejadian dicatat ke tabel tersendiri di basis data yang sama, dalam satu transaksi bersama perubahan datanya.'),
+
+  h3('Yang ditolak juga dicatat, dan itu bagian terpentingnya'),
+  p('Hampir semua jejak audit hanya menyimpan yang berhasil. Akibatnya, seseorang yang berulang kali mencoba menyentuh akun yang bukan haknya tidak meninggalkan jejak sama sekali — justru pola yang paling perlu terlihat.'),
+  quote('Sepuluh percobaan yang gagal terhadap akun superadmin adalah keterangan yang jauh lebih berguna daripada satu perubahan yang berhasil.'),
+
+  h3('Pelaku dibaca dari alur, bukan dari argumen'),
+  p('Alternatifnya menambah dua parameter ke setiap method service yang mengubah data. Satu titik yang lupa meneruskannya menghasilkan baris audit tanpa pelaku — dan baris itu tetap tersimpan seolah sah. Penyimpanan lokal per-alur yang sama seperti pada 14.2 dipakai kembali di sini.'),
+
+  h3('Isi perubahannya tidak disimpan'),
+  p('Nama field yang berubah dicatat, nilainya tidak. Jejak audit tidak boleh menjadi tempat kedua yang menyimpan data pribadi — tempat yang biasanya luput dari perhatian justru karena ia dianggap sekadar catatan.'),
+  p('Satu pengecualian yang disengaja: perubahan role menyimpan yang lama dan yang baru. Tanpa keduanya, pertanyaan "sejak kapan orang ini menjadi administrator" tidak punya jawaban.'),
+
+  h3('Kegagalan menulis audit tidak menggagalkan operasinya'),
+  p('Keputusan yang bisa diperdebatkan, karena itu dipilih secara sadar dan diuji secara eksplisit. Satu tabel audit yang bermasalah tidak boleh membuat seluruh aplikasi berhenti dapat mengubah data. Yang membuatnya dapat dipertanggungjawabkan adalah syarat pendampingnya: kegagalannya wajib tercatat di log sebagai error, sehingga jejak yang hilang tetap meninggalkan jejak.'),
+
+  h2('15.4 Penjamin Idempotensi'),
+  p('Butir ini yang paling mudah disalahpahami. Kolom email pengguna dan nama role sudah bersifat unik, jadi permintaan yang terkirim dua kali TIDAK menghasilkan data ganda. Masalahnya bukan itu.'),
+  p('Masalahnya adalah bentuk jawaban pada percobaan kedua. Percobaan pertama berhasil, tetapi jawabannya tidak sampai ke klien karena jaringan terputus. Klien mengulang. Yang kedua dijawab 409 "email sudah digunakan" — dari sisi klien tampak seperti gagal, padahal akunnya sudah terbuat. Klien yang menangani kegagalan itu dengan benar akan menampilkan pesan salah kepada penggunanya.'),
+  table(
+    ['Percobaan', 'Sebelum bab ini', 'Sesudah'],
+    [
+      ['Pertama', '201, data terbuat', '201, data terbuat'],
+      ['Ulangan, jawaban pertama hilang', '409, tampak gagal', '201 yang asli, ditandai sebagai pengulangan'],
+      ['Ulangan tiba saat yang pertama masih berjalan', 'dua operasi tulis berjalan bersamaan', '409, satu-satunya yang benar di sini'],
+      ['Percobaan gagal, diperbaiki, lalu diulang', 'diproses ulang', 'diproses ulang; kegagalan tidak mengunci kuncinya'],
+    ],
+    [2600, 3000, 3426]
+  ),
+
+  h3('Opsional, bukan wajib'),
+  p('Permintaan tanpa penanda idempotensi diteruskan apa adanya. Mewajibkannya akan memutus setiap klien yang sudah ada sekarang, dan jaminannya memang hanya berguna bagi klien yang melakukan percobaan ulang otomatis.'),
+
+  h3('Pemesanan atomik, bukan periksa-lalu-tulis'),
+  p('Pola yang tampak wajar adalah memeriksa apakah kuncinya sudah ada, lalu menuliskannya kalau belum. Pola itu tidak menyelesaikan apa pun pada kasus yang justru menjadi alasan fitur ini ada: dua permintaan yang datang bersamaan sama-sama melihat "belum ada", dan keduanya lanjut diproses.'),
+  p('Yang dipakai adalah satu perintah Redis yang menulis hanya apabila kuncinya belum ada. Tepat satu dari keduanya menang, dijamin oleh Redis, bukan oleh urutan yang kebetulan.'),
+
+  h3('Kunci dibatasi per pengguna'),
+  p('Cakupannya menyertakan identitas pengguna, metode, dan alamat endpoint. Tanpa pembatasan itu, dua klien berbeda yang kebetulan memakai penanda yang sama akan saling menerima jawaban milik orang lain — kebocoran data yang parah dan hampir tidak mungkin dilacak, karena tidak ada satu pun yang tampak salah di dalam log.'),
+
+  h3('Hanya jawaban berhasil yang disimpan'),
+  p('Kalau kegagalan ikut tersimpan, percobaan ulang atas gangguan sementara akan selamanya menerima kegagalan yang sama — kebalikan dari tujuan fiturnya. Kunci yang permintaannya gagal dilepas kembali, sehingga klien yang salah kirim sekali dapat memperbaiki dan mengulang dengan penanda yang sama.'),
+
+  h2('15.5 Hasil'),
+  table(
+    ['', 'Sebelum bab ini', 'Sesudah'],
+    [
+      ['Field keluaran ditentukan eksplisit', 'tidak, seluruh isi model', 'ya, daftar-yang-diizinkan'],
+      ['Field yang tidak sengaja terkirim', '2 ditemukan', '0'],
+      ['Validasi bentuk data', 'manual, di dalam service', '15 skema di tepi controller'],
+      ['Field tak dikenal pada masukan', 'diabaikan', 'ditolak dengan 400'],
+      ['Jejak perubahan data', 'tidak ada', '14 jenis kejadian, termasuk yang ditolak'],
+      ['Percobaan tulis yang diulang', '409 yang menyesatkan', 'jawaban asli, ditandai pengulangan'],
+      ['Pengujian unit', '261', '354'],
+      ['Pengujian end-to-end', '27', '34'],
+      ['Cakupan baris', '98,9%', '98,7%'],
+    ],
+    [2600, 2400, 3026]
+  ),
+  ...code([
+    'Pengujian unit                  : 354 lulus, 0 gagal',
+    'Pengujian end-to-end            : 34 lulus, 0 gagal',
+    'Cakupan baris                   : 98,7 persen (ambang 80)',
+    'Cakupan cabang                  : 97,3 persen (ambang 80)',
+    'Kode error mesin                : 32',
+    'Skema validasi masukan          : 15',
+    'Field sensitif di jawaban API   : nol kemunculan',
+  ]),
+  p('Cakupan barisnya turun nol koma dua persen. Bukan karena pengujiannya berkurang, tetapi karena kode yang diuji bertambah lebih banyak daripada pengujiannya — dan angka itu memang bukan tujuan yang perlu dijaga tetap naik.'),
+
+  h2('15.6 Yang Masih Belum Dikerjakan'),
+  table(
+    ['Yang belum ada', 'Kapan sebaiknya ditambahkan'],
+    [
+      ['Halaman untuk membaca jejak audit', 'Sekarang tabelnya hanya dapat dibaca lewat kueri langsung. Cukup selama yang membacanya adalah pengembang; tidak cukup begitu ada auditor'],
+      ['Pembersihan jejak audit lama', 'Tabelnya tumbuh tanpa batas. Belum terasa pada volume sekarang, dan aturan lama simpannya adalah keputusan kebijakan, bukan keputusan teknis'],
+      ['Idempotensi pada seluruh operasi tulis', 'Sekarang hanya pada pembuatan pengguna dan role. Sisanya sudah idempoten dengan sendirinya, jadi yang perlu ditambahkan hanya operasi tulis baru yang tidak'],
+      ['Pengiriman log ke sistem pengumpul terpusat', 'Ketika jumlah instansnya lebih dari satu; sekarang keluaran standar sudah cukup terbaca'],
+    ],
+    [3600, 5426]
+  ),
+  br(),
+
   h1('Lampiran A — Daftar Endpoint'),
   table(
     ['Metode dan Alamat', 'Fungsi', 'Izin yang Dibutuhkan'],
@@ -1102,6 +1225,8 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
       ['Penyimpanan', 'MINIO_HOST, MINIO_PORT, MINIO_CONSOLE_PORT, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, MINIO_BUCKET, MINIO_USE_SSL', 'Kata sandi minimal 8 karakter, jika kurang layanan menolak menyala'],
       ['Email', 'SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD, MAIL_FROM', 'Hanya diperlukan oleh proses pengirim email, tidak oleh proses API'],
       ['Akun awal', 'SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD, SUPERADMIN_FULL_NAME', 'Hanya dipakai satu kali saat pengisian data awal'],
+      ['Batas dan ambang', 'PASSWORD_MIN_LENGTH, BCRYPT_SALT_ROUNDS, LOGIN_RATE_LIMIT_MAX_ATTEMPTS, USERS_MAX_PAGE_SIZE, AVATAR_MAX_SIZE_BYTES', 'Lantai keamanannya dipasang di skema: nilainya boleh diperketat, tidak boleh dilemahkan'],
+      ['Masa berlaku', 'JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN, PASSWORD_RESET_TTL_SECONDS, PERMISSION_CACHE_TTL_SECONDS, IDEMPOTENCY_TTL_SECONDS', 'Ditulis dalam bentuk yang terbaca manusia seperti 15m atau 7d, lalu dikonversi ke detik saat dibaca'],
     ],
     [1600, 4400, 3026]
   ),
