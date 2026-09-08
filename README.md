@@ -79,7 +79,7 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset` | Membangun ulang database dari nol |
 | `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm run test:unit` | 138 pengujian unit — tanpa Docker, tanpa database |
+| `npm run test:unit` | 201 pengujian unit — tanpa Docker, tanpa database |
 | `npm run test:e2e` | 27 pengujian end-to-end — perlu seluruh layanan hidup |
 | `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
 | `npm test` | Unit lalu end-to-end |
@@ -116,16 +116,22 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 | `modules/auth/password.service.js` | 100% | 100% |
 | `services/permission.service.js` | 97,5% | 93,9% |
 | `utils/duration.js` | 100% | 100% |
-| `modules/roles/roles.service.js` | 92,4% | 95,8% |
+| `modules/roles/roles.service.js` | 92,1% | 95,8% |
+| `middlewares/authenticate.js` | 100% | 100% |
+| `middlewares/authorize.js` | 100% | 100% |
+| `middlewares/errorHandler.js` | 100% | 94,1% |
+| `config/env.schema.js` | 97,7% | 93,3% |
 | `repositories/passwordResetToken.repository.js` | 100% | 100% |
 | `repositories/tokenDenylist.repository.js` | 100% | 100% |
 | `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
 
-Keseluruhan 89,4 persen baris dan 96,2 persen cabang.
+Keseluruhan **98,5 persen baris dan 97,5 persen cabang**.
 
 Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
 Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
-dijalankan — bagian itu dibuktikan oleh pengujian end-to-end.
+dijalankan — bagian itu dibuktikan oleh pengujian end-to-end. Karena
+dependensinya kini disuntikkan, berkas-berkas itu bahkan tidak ikut dimuat
+saat pengujian unit berjalan.
 
 ---
 
@@ -168,19 +174,22 @@ Seluruhnya berawalan `/api/v1`.
 
 ```
 src/
-├── config/        konfigurasi dan validasi environment
-├── constants/     data tetap tanpa efek samping (permissions.js dibuat otomatis)
-├── utils/         fungsi murni, tidak menyentuh I/O
-├── database/      koneksi, model, migration, seeder
-├── redis/         koneksi Redis
-├── queue/         koneksi RabbitMQ dan penerbitan pesan
-├── storage/       koneksi MinIO dan operasi berkas
+├── container.js   SATU-SATUNYA tempat `new` dipanggil (composition root)
+├── app.js         perakit Express; tidak membuka port
+├── server.js      titik masuk proses API
+├── config/        SATU-SATUNYA tempat process.env dibaca (skema Zod)
+├── constants/     data tetap: satuan, nama role, awalan kunci, izin
+├── utils/         fungsi murni + TokenService
+├── database/      Database (koneksi + model), migration, seeder
+├── redis/         CacheClient
+├── queue/         MessageQueue
+├── storage/       ObjectStorage
 ├── repositories/  SATU-SATUNYA tempat penyusunan query
-├── services/      logika bisnis, memanggil repository
-├── middlewares/   pemeriksaan sebelum controller
-├── modules/       fitur, satu folder per fitur (controller, service, routes)
+├── services/      logika bisnis lintas fitur
+├── middlewares/   pemeriksaan sebelum controller, semuanya class
+├── modules/       fitur: controller, service, routes per folder
 ├── routes/        pengumpul seluruh route
-└── workers/       proses terpisah yang berjalan sendiri
+└── workers/       EmailWorker, proses terpisah
 
 public/            antarmuka console (HTML, CSS, JS tanpa build)
 scripts/           perkakas pengembangan (generator konstanta izin)
@@ -234,17 +243,40 @@ Dua pengaman berjalan tanpa perlu diingat:
 routes -> controller -> service -> repository -> model/DB
 ```
 
-Sequelize dan klien Redis **hanya boleh disebut di dalam `repositories/`**.
-Service memanggil repository, tidak pernah menyentuh model secara langsung.
+Tiga aturan yang ditegakkan, dan masing-masing dapat diperiksa dengan satu grep:
 
-Dua pengecualian yang disengaja: `runInTransaction` dari `database/` boleh
-dipakai service untuk membungkus beberapa operasi tulis, dan `server.js`
-mengelola siklus hidup koneksi karena ia adalah titik penyusunan aplikasi.
+| Aturan | Perintah pemeriksa | Nilai sekarang |
+|---|---|---|
+| `process.env` hanya di `config/` | `grep -rn "process.env" src \| grep -v src/config` | 0 |
+| Sequelize & Redis hanya di `repositories/` | `grep -rn "findAll\|findOne" src \| grep -v repositories` | 0 |
+| Tidak ada singleton diekspor | `grep -rnE "module.exports.*: new [A-Z]" src` | 0 |
 
-Repository, service, dan controller ditulis sebagai **class** dengan
-dependensi disuntikkan lewat constructor, sehingga dapat digantikan objek
-palsu saat pengujian unit. Middleware, `utils/`, dan berkas route tetap berupa
-fungsi — Express mengharuskannya, dan class tanpa state hanya menambah upacara.
+**Dependency injection.** Seluruh kolaborator masuk lewat constructor, dan
+satu-satunya tempat kata `new` dipanggil untuk merakitnya adalah
+[src/container.js](src/container.js). Tidak ada satu pun berkas logika yang
+tahu implementasi konkret kolaboratornya:
+
+```js
+// dipakai sehari-hari — dirakit container
+new AuthService({ users, denylist, refreshTokens, tokens, ttlSeconds })
+
+// dipakai di pengujian — objek palsu, tanpa satu pun layanan hidup
+new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() })
+```
+
+**Yang tetap berupa fungsi, dan alasannya.** `utils/response.js` dan
+`utils/duration.js` murni — tanpa dependensi, tanpa keadaan. Tidak ada yang
+bisa disuntikkan dan tidak ada yang perlu dipalsukan, jadi class hanya
+menambah `new` tanpa menambah kemampuan. Berkas route berupa pabrik yang
+menerima container; berkas `constants/` murni data.
+
+**Konfigurasi.** Seluruh nilai environment dibaca sekali di
+[src/config/index.js](src/config/index.js), divalidasi skema Zod, lalu dipotong
+menjadi irisan sempit. Kegagalan konfigurasi melaporkan SELURUH masalah
+sekaligus lalu keluar dengan kode 1 — bukan berhenti di variabel pertama.
+Lantai keamanan dipasang di skema: `BCRYPT_SALT_ROUNDS` minimal 10,
+`PASSWORD_MIN_LENGTH` minimal 12, `JWT_SECRET` minimal 32 karakter. Boleh
+diperketat, tidak boleh dilemahkan.
 
 ---
 

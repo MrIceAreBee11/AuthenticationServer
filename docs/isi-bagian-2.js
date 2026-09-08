@@ -805,6 +805,141 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
   ]),
   br(),
 
+  /* ═══════════════════ BAB 13 ═══════════════════ */
+  h1('BAB 13 — Audit Arsitektur dan Standarisasi'),
+  p('Setelah empat perbaikan pada bab sebelumnya, seluruh kode diaudit sekali lagi terhadap satu standar arsitektur backend secara menyeluruh — bukan lagi menindaklanjuti masukan satu per satu, melainkan memeriksa keseluruhannya sebagai kesatuan. Bab ini mencatat temuannya beserta perbaikannya.'),
+
+  h2('13.1 Hasil Audit'),
+  p('Yang diperiksa lima belas aturan: struktur per fitur, arah ketergantungan antar lapisan, pemakaian class dan penyuntikan dependensi, pola repository, konfigurasi tanpa nilai tertanam, batas masukan dan keluaran, penanganan error terpusat, keteramatan, keamanan berlapis, dan kesiapan diuji.'),
+  p('Empat aturan terpenuhi sepenuhnya, enam sebagian, lima belum. Yang sudah bersih patut dicatat lebih dulu: nol pelanggaran pada pola repository — tidak ada satu pun pemanggilan Sequelize di luar folder repositories, dan itu justru bagian tersulit. Arah ketergantungan antar lapisan juga rapi, tanpa lapisan yang dilewati.'),
+  table(
+    ['Tingkat', 'Temuan utama'],
+    [
+      ['BLOCKER', 'Dua rahasia (password superadmin dan password SMTP) dibaca tanpa pernah divalidasi; dua belas variabel environment dibaca tanpa validasi apa pun; validasi environment terpecah di dua berkas dengan daftar wajib masing-masing; teks "superadmin" ditulis ulang di tiga berkas'],
+      ['MAJOR', 'Dua puluh empat instance diekspor di module scope; dua puluh dua angka konfigurasi tertanam di kode; state mutable di module scope pada tujuh titik; middleware autentikasi meng-import repository langsung sehingga nol pengujiannya; empat puluh pemanggilan console langsung'],
+      ['MINOR', 'JWT tanpa penanda penerbit dan penerima; belum ada kode error mesin; validasi masukan masih manual'],
+    ],
+    [1800, 7226]
+  ),
+
+  h2('13.2 Temuan Terpenting: Penyuntikan Dependensi yang Setengah Jadi'),
+  p('Temuan yang paling menarik justru bukan yang paling gawat. Service, controller, dan repository memang SUDAH berupa class dengan dependensi yang masuk lewat constructor — itu hasil kerja bab sebelumnya. Tetapi setiap berkas mengakhiri dirinya seperti ini:'),
+  ...code([
+    "module.exports = { AuthService, authService: new AuthService() };",
+    "//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "",
+    "class AuthService {",
+    "  constructor({ users = userRepository, denylist = tokenDenylistRepository } = {}) {",
+    "//                      ^^^^^^^^^^^^^^ nilai bawaan me-require yang konkret",
+  ]),
+  caption('Gambar 13.1 — Constructor menerima dependensi, tetapi bawaannya menentukan sendiri'),
+  p('Ada dua puluh empat baris seperti itu. Constructor-nya benar, tetapi nilai bawaannya mengambil implementasi konkret, dan instance-nya dirakit di berkas itu sendiri. Akibatnya setiap berkas logika tetap tahu siapa kolaboratornya — dan manfaat kelonggaran antar bagian, yang menjadi alasan memakai class sejak awal, tidak pernah benar-benar tercapai. Mengganti satu implementasi tetap berarti mengedit berkasnya.'),
+  quote('Pelajarannya: class MEMUDAHKAN penyuntikan dependensi, bukan MENJAMIN-nya. Yang menentukan bukan pilihan antara const dan class, melainkan di mana dependensi diselesaikan.'),
+  p('Perbaikannya satu berkas baru, src/container.js — satu-satunya tempat kata new dipanggil untuk merakit kolaborator. Urutan perakitannya mengikuti arah ketergantungan: konfigurasi, adapter, repository, service, middleware, controller. Tidak ada anak panah yang menunjuk ke belakang, dan kalau suatu saat ada, berkas inilah yang pertama meneriakkannya saat merakit.'),
+
+  h2('13.3 Konfigurasi: Dari Dua Puluh Dua Angka Tertanam ke Satu Skema'),
+  p('Angka konfigurasi tersebar di enam belas berkas: batas percobaan login, jendela pembatas laju, masa berlaku token reset, masa simpan cache izin, ukuran halaman, batas ukuran unggahan, cost factor bcrypt, batas waktu Redis, dan seterusnya.'),
+  p('Yang membuat ini bukan sekadar soal kerapian: batas percobaan login tidak dapat diperketat ketika serangan sedang berjalan tanpa menunggu build berikutnya selesai. Angka yang seharusnya menjadi tombol operasional justru terkubur di dalam kode.'),
+  p('Seluruhnya dipindahkan ke satu skema yang divalidasi saat aplikasi start. Tetapi skema memberi tiga hal yang tidak bisa dilakukan daftar pemeriksaan manual.'),
+  num('Konversi tipe. Isi environment selalu berupa teks. Nilai PORT dipakai sebagai teks "3000", dan nilai "false" bersifat truthy sehingga pengaturan yang dimaksudkan mati justru menyala. Keduanya bug klasik.'),
+  num('Rentang dan lantai keamanan. Cost factor bcrypt boleh dinaikkan operator, tidak boleh diturunkan di bawah sepuluh. Panjang minimal password boleh diperketat, tidak boleh dilemahkan. Lantainya dipasang di skema, bukan diserahkan pada niat baik.'),
+  num('Invarian lintas variabel. Refresh token wajib lebih panjang umurnya daripada access token — dan tidak ada satu variabel pun yang dapat memvalidasi itu sendirian. Kalau terbalik, sesi mati sebelum sempat diperbarui, dan gejalanya jauh lebih membingungkan daripada penyebabnya.'),
+  p('Ada dua invarian lain yang hanya berlaku di production: alamat aplikasi wajib memakai HTTPS karena tautan reset password melewatinya, dan jumlah proxy tidak boleh nol karena pembatas laju akan melihat alamat proxy dan seluruh pengguna berbagi satu jatah.'),
+
+  h3('Kegagalan konfigurasi melaporkan semuanya sekaligus'),
+  p('Perbedaan yang paling terasa sehari-hari. Validasi lama melempar pada variabel pertama yang salah, jadi memperbaiki berkas environment berarti menyalakan aplikasi berulang kali. Skema melaporkan seluruh masalah dalam satu keluaran.'),
+  ...code([
+    '[config] Environment tidak valid:',
+    '  - PORT: Too big: expected number to be <=65535',
+    '  - JWT_SECRET: minimal 32 karakter',
+    '  - REFRESH_TOKEN_EXPIRES_IN: bernilai "1w" yang tidak dikenali',
+    '  - PASSWORD_MIN_LENGTH: Too small: expected number to be >=12',
+    '  - BCRYPT_SALT_ROUNDS: Too small: expected number to be >=10',
+    '  - MINIO_USE_SSL: Invalid option: expected one of "true"|"false"',
+    '  - SUPERADMIN_EMAIL: Invalid email address',
+  ]),
+  caption('Gambar 13.2 — Sepuluh masalah dilaporkan sekaligus, lalu keluar dengan kode 1'),
+  p('Perhatikan bahwa empat dari tujuh baris itu TIDAK MUNGKIN ditangkap validasi lama, yang hanya memeriksa apakah variabelnya kosong. Nilai di luar rentang, satuan yang tidak dikenali, teks yang bukan boolean, dan format email yang salah semuanya lolos.'),
+
+  h3('Nilai disuntikkan sebagai irisan, bukan sebagai satu objek besar'),
+  p('Sebuah class sebaiknya menerima persis yang ia butuhkan. Service password menerima dua nilai — panjang minimal dan masa berlaku token — bukan seluruh konfigurasi aplikasi. Dengan begitu dependensinya terbaca langsung dari tanda tangan constructor, dan di pengujian cukup menyerahkan objek biasa berisi dua nilai itu.'),
+
+  h2('13.4 Duplikasi yang Ikut Hilang'),
+  table(
+    ['Yang terduplikasi', 'Kalau salah satunya diubah'],
+    [
+      ['Teks "superadmin" di tiga berkas', 'Satu berkas melindungi role itu, satu memakainya memutuskan hak akses. Salah ketik mematikan perlindungan akun superadmin tanpa satu pun error'],
+      ['Cost factor bcrypt di model dan seeder', 'Akun superadmin dan akun biasa punya kekuatan hash berbeda tanpa ada yang menyadarinya'],
+      ['Batas "2 MB" sebagai limit dan sebagai teks pesan', 'Pesan kesalahannya berbohong kepada pengguna'],
+      ['Panjang minimal password di dua service', 'Aturan berbeda tergantung siapa yang membuat akunnya'],
+      ['Daftar variabel SMTP wajib di worker dan di config', 'Dua sumber kebenaran untuk pertanyaan yang sama; yang ketinggalan baru terasa saat email gagal terkirim'],
+    ],
+    [3200, 5826]
+  ),
+
+  h3('Hash tiruan yang cost factor-nya tidak lagi tertanam'),
+  p('Satu duplikasi yang paling halus. Penyetaraan waktu login memakai hash tiruan yang ditulis sebagai teks di dalam kode, dan cost factor-nya tertanam di dalam teks itu. Selama cost factor yang sungguhan juga dua belas, keduanya sepadan dan celah waktunya tertutup.'),
+  p('Begitu cost factor dinaikkan, perbandingan tiruan menjadi jauh lebih cepat daripada yang sungguhan — dan celah yang seharusnya ditutup terbuka lagi tanpa satu pun tanda. Sekarang hash itu dihitung saat aplikasi start dari cost factor yang berlaku, jadi ia tidak mungkin ketinggalan.'),
+
+  h2('13.5 Imbal Hasil Terbesar: Middleware Akhirnya Dapat Diuji'),
+  p('Middleware autentikasi berisi lima pemeriksaan yang merupakan inti keamanan seluruh aplikasi. Sampai audit ini, NOL yang mengujinya — dan alasannya sederhana: berkas itu meng-import repository di baris paling atas, jadi tidak ada cara menjalankannya tanpa PostgreSQL dan Redis yang benar-benar hidup.'),
+  p('Setelah dependensinya masuk lewat constructor, dua belas pengujian dapat ditulis untuk berkas itu — termasuk yang paling penting: ketika Redis tidak dapat dibaca, middleware harus menjawab 503 dan BUKAN meloloskan permintaan. Redis adalah satu-satunya sumber kebenaran untuk pertanyaan "apakah token ini sudah dicabut". Kalau tidak terbaca, jawabannya tidak diketahui — dan melanjutkan berarti menerima token yang mungkin sudah di-logout.'),
+  p('Hal yang sama berlaku untuk middleware otorisasi, yang selain meng-import service langsung juga menyimpan daftar izin di module scope. Isinya menumpuk seumur proses dan tidak dapat direset, sehingga satu berkas pengujian mencemari berkas berikutnya. Sekarang daftar itu milik instance, dan ada pengujian yang membuktikannya.'),
+  table(
+    ['', 'Sebelum audit', 'Sesudah'],
+    [
+      ['Pengujian unit', '138', '201'],
+      ['Cakupan baris', '88,8%', '98,5%'],
+      ['Cakupan cabang', '95,4%', '97,5%'],
+      ['Middleware dengan pengujian', '0 dari 5', '3 dari 5'],
+      ['process.env di luar config/', '6 titik', '0'],
+      ['Instance diekspor di module scope', '24', '0'],
+      ['State mutable di module scope', '7', '0'],
+      ['Angka konfigurasi tertanam', '22', '0'],
+    ],
+    [2600, 2400, 2026]
+  ),
+  p('Kenaikan cakupan itu bukan karena pengujian ditambal untuk mengejar angka. Ia naik karena pengujian unit sekarang hanya memuat logika — berkas infrastruktur tidak lagi ikut ter-require, sehingga yang dihitung memang bagian yang benar-benar diuji.'),
+
+  h2('13.6 Yang Sengaja Tetap Berupa Fungsi'),
+  p('Instruksinya adalah mengubah seluruh berkas menjadi class. Dua berkas dikecualikan, dan alasannya perlu dicatat karena standar yang dipakai sendiri membolehkannya: pembantu murni boleh tetap berupa fungsi.'),
+  p('Berkas penyusun jawaban HTTP dan pengubah durasi keduanya murni — tanpa dependensi, tanpa keadaan, tanpa menyentuh masukan-keluaran. Tidak ada yang dapat disuntikkan ke dalamnya dan tidak ada yang perlu dipalsukan saat pengujian. Membungkusnya menjadi class hanya menambah kata new tanpa menambah satu pun kemampuan.'),
+  quote('Class dipakai di tempat yang punya dependensi untuk disuntikkan atau keadaan untuk dikelola. Di tempat yang tidak punya keduanya, ia hanya menambah baris.'),
+  p('Berkas route diubah menjadi pabrik yang menerima container, bukan class — tugasnya hanya menyambungkan alamat ke handler, dan perakitan objeknya sudah pindah ke container. Berkas di folder constants murni data.'),
+
+  h2('13.7 Komentar Penempatan di Setiap Berkas'),
+  p('Setiap berkas di dalam src/ sekarang dibuka dua penjelasan: BERKAS INI, yang menyatakan isinya dalam satu kalimat, dan KENAPA DI SINI, yang menjelaskan alasan penempatannya beserta keputusan yang tidak terbaca dari kodenya sendiri.'),
+  p('Yang dicatat bukan apa yang dilakukan kode — itu sudah terbaca dari kodenya. Yang dicatat adalah alasan yang akan hilang: kenapa prefiks kunci Redis TIDAK boleh menjadi variabel environment padahal ia terlihat seperti konfigurasi, kenapa repository mengembalikan objek model dan bukan objek biasa, kenapa urutan hook normalisasi dan hashing tidak boleh ditukar, kenapa kegagalan Redis dilewati di satu tempat tetapi menjatuhkan permintaan di tempat lain.'),
+
+  h2('13.8 Yang Belum Dikerjakan, dan Kapan Sebaiknya'),
+  table(
+    ['Yang belum ada', 'Kapan sebaiknya ditambahkan'],
+    [
+      ['Pencatatan log terstruktur beserta penanda korelasi permintaan', 'Ketika log dikirim ke sistem pengumpul terpusat; empat puluh pemanggilan console langsung saat ini tidak dapat difilter maupun ditelusuri antar permintaan'],
+      ['Kode error yang dapat dibaca mesin', 'Ketika ada klien selain antarmuka sendiri yang perlu membedakan jenis kegagalan tanpa mencocokkan teks pesan'],
+      ['Lapisan pemetaan keluaran yang eksplisit', 'Sekarang objek model langsung menjadi jawaban. Aman karena penyaring kolom rahasia melekat di model, tetapi itu satu penimpaan dari kebocoran'],
+      ['Validasi masukan berbasis skema di tepi controller', 'Ketika jumlah field per endpoint bertambah; pemeriksaan manual sekarang masih terbaca'],
+      ['Penanda penerbit dan penerima pada token', 'Ketika ada layanan kedua yang memakai kunci yang sama'],
+    ],
+    [3600, 5426]
+  ),
+  p('Daftar ini disusun dengan prinsip yang sama seperti pada Bab 10: sesuatu ditambahkan ketika sudah ada yang benar-benar membutuhkannya. Keempat yang pertama menambah PERILAKU baru, dan perilaku baru butuh pengujian baru sebelum dapat dipercaya — berbeda dengan seluruh perbaikan di bab ini, yang murni memindahkan struktur sehingga dua ratus dua puluh delapan pengujian yang ada adalah buktinya.'),
+
+  h2('13.9 Hasil Pengujian'),
+  ...code([
+    'Pengujian unit                 : 201 lulus, 0 gagal, tanpa layanan hidup',
+    'Pengujian end-to-end           : 27 lulus, 0 gagal',
+    'Cakupan baris                  : 98,5 persen (ambang 80)',
+    'Cakupan cabang                 : 97,5 persen (ambang 80)',
+    'Container dibangun ulang       : sehat, katalog izin 11/11',
+    'Sapuan seluruh endpoint        : 26 dari 26, 0 gagal',
+    'Worker email                   : hidup, pesan terkirim',
+    'process.env di luar config/    : 0',
+    'Instance diekspor module scope : 0',
+    'State mutable module scope     : 0',
+  ]),
+  br(),
+
   h1('Lampiran A — Daftar Endpoint'),
   table(
     ['Metode dan Alamat', 'Fungsi', 'Izin yang Dibutuhkan'],
