@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
 const AppError = require('../../utils/AppError');
-const env = require('../../config/env');
+const { config } = require('../../config');
 const { signAccessToken, createOpaqueToken } = require('../../utils/token');
 const { userRepository } = require('../../repositories/user.repository');
 const {
@@ -51,7 +51,7 @@ class AuthService {
       plainToken,
       userId,
       familyId,
-      expiresAt: new Date(Date.now() + env.refreshToken.expiresInSeconds * 1000),
+      expiresAt: new Date(Date.now() + config.token.refreshTtlSeconds * 1000),
     });
 
     return plainToken;

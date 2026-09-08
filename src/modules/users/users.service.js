@@ -4,11 +4,10 @@ const { removeObject } = require('../../storage');
 const { userRepository } = require('../../repositories/user.repository');
 const { roleRepository } = require('../../repositories/role.repository');
 const { permissionService } = require('../../services/permission.service');
+const { config } = require('../../config');
+const { ROLES } = require('../../constants/roles');
 
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
-const MIN_PASSWORD_LENGTH = 12;
-const SUPERADMIN_ROLE = 'superadmin';
+
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,7 +18,11 @@ class UsersService {
     roles = roleRepository,
     permissions = permissionService,
     storage = null,
+    policy = config.password,
+    paging = config.pagination.users,
   } = {}) {
+    this.policy = policy;
+    this.paging = paging;
     this.users = users;
     this.roles = roles;
     this.permissions = permissions;
@@ -46,7 +49,7 @@ class UsersService {
   }
 
   #isSuperadmin(user) {
-    return user.roles.some((role) => role.name === SUPERADMIN_ROLE);
+    return user.roles.some((role) => role.name === ROLES.SUPERADMIN);
   }
 
   /**
@@ -102,8 +105,8 @@ class UsersService {
     // Batas atas ditentukan server, bukan klien. Tanpa ini, ?limit=999999
     // memaksa seluruh tabel dimuat ke memori dalam satu permintaan.
     const safeLimit = Math.min(
-      MAX_PAGE_SIZE,
-      Math.max(1, Number(limit) || DEFAULT_PAGE_SIZE)
+      this.paging.maxSize,
+      Math.max(1, Number(limit) || this.paging.defaultSize)
     );
 
     const { rows, count } = await this.users.paginate({
@@ -131,8 +134,8 @@ class UsersService {
       throw new AppError('Email, password, dan nama lengkap wajib diisi', 400);
     }
 
-    if (String(password).length < MIN_PASSWORD_LENGTH) {
-      throw new AppError(`Password minimal ${MIN_PASSWORD_LENGTH} karakter`, 400);
+    if (String(password).length < this.policy.minLength) {
+      throw new AppError(`Password minimal ${this.policy.minLength} karakter`, 400);
     }
 
     const roles = await this.#resolveRoles(roleIds);

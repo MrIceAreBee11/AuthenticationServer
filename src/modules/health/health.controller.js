@@ -1,5 +1,6 @@
 const { successResponse, errorResponse } = require('../../utils/response');
 const { healthRepository } = require('../../repositories/health.repository');
+const { config } = require('../../config');
 
 class HealthController {
   constructor({ health = healthRepository } = {}) {
@@ -14,7 +15,7 @@ class HealthController {
   liveness = (req, res) =>
     successResponse(res, 200, 'Service berjalan normal', {
       uptime: Math.floor(process.uptime()),
-      environment: process.env.NODE_ENV,
+      environment: config.app.env,
       timestamp: new Date().toISOString(),
     });
 

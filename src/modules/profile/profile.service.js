@@ -3,8 +3,7 @@ const crypto = require('node:crypto');
 const AppError = require('../../utils/AppError');
 const { putObject, getPresignedUrl, removeObject } = require('../../storage');
 const { userRepository } = require('../../repositories/user.repository');
-
-const AVATAR_URL_TTL_SECONDS = 60 * 60;
+const { config } = require('../../config');
 const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/;
 
 const EXTENSION_BY_MIME = {
@@ -14,9 +13,14 @@ const EXTENSION_BY_MIME = {
 };
 
 class ProfileService {
-  constructor({ users = userRepository, storage = null } = {}) {
+  constructor({
+    users = userRepository,
+    storage = null,
+    avatar = config.upload.avatar,
+  } = {}) {
     this.users = users;
     this.storage = storage ?? { putObject, getPresignedUrl, removeObject };
+    this.avatar = avatar;
   }
 
   async #findOrFail(userId) {
@@ -41,7 +45,7 @@ class ProfileService {
     }
 
     try {
-      return await this.storage.getPresignedUrl(avatarKey, AVATAR_URL_TTL_SECONDS);
+      return await this.storage.getPresignedUrl(avatarKey, this.avatar.urlTtlSeconds);
     } catch (error) {
       console.error('[STORAGE] gagal membuat presigned URL:', error.message);
 

@@ -1,32 +1,37 @@
-const env = require('./env');
+/**
+ * BERKAS INI: konfigurasi koneksi dalam bentuk yang dimengerti sequelize-cli.
+ *
+ * KENAPA TERPISAH DARI config/index.js: sequelize-cli tidak memanggil aplikasi
+ * kita. Ia membaca berkas ini langsung — jalurnya ditunjuk oleh .sequelizerc —
+ * lalu memilih blok berdasarkan --env. Bentuk objek dengan kunci per lingkungan
+ * ini adalah kontrak CLI-nya, bukan pilihan kita.
+ *
+ * KENAPA MEMBACA config, BUKAN process.env: supaya nilainya melewati validasi
+ * yang sama. Kalau berkas ini membaca process.env sendiri, migration bisa jalan
+ * dengan konfigurasi yang aplikasinya sendiri akan menolak — dan selisih itu
+ * baru terasa saat deploy.
+ */
+const { config } = require('./index');
 
-const baseConfig = {
-  username: env.db.user,
-  password: env.db.password,
-  database: env.db.name,
-  host: env.db.host,
-  port: env.db.port,
+const base = {
+  username: config.database.user,
+  password: config.database.password,
+  database: config.database.name,
+  host: config.database.host,
+  port: config.database.port,
   dialect: 'postgres',
   seederStorage: 'sequelize',
-  define: {
-    underscored: true,
-    timestamps: true,
-  },
+  define: { underscored: true, timestamps: true },
+  pool: { ...config.database.pool },
 };
 
 module.exports = {
-  development: {
-    ...baseConfig,
-    logging: (sql) => console.log(`[SQL] ${sql}`),
-  },
-  test: {
-    ...baseConfig,
-    database: `${env.db.name}_test`,
-    logging: false,
-  },
-  production: {
-    ...baseConfig,
-    logging: false,
-    pool: { max: 10, min: 2, idle: 10000 },
-  },
+  development: { ...base, logging: (sql) => console.log(`[SQL] ${sql}`) },
+
+  // Nama database pengujian diturunkan dari nama utama, bukan variabel
+  // tersendiri. Dengan begitu tidak mungkin lupa mengubahnya dan menjalankan
+  // pengujian yang mengosongkan tabel di database pengembangan.
+  test: { ...base, database: `${config.database.name}_test`, logging: false },
+
+  production: { ...base, logging: false },
 };

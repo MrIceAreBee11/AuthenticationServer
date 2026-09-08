@@ -1,36 +1,38 @@
 'use strict';
 
-require('dotenv').config({ quiet: true });
-
+/**
+ * BERKAS INI: seeder yang membuat satu akun superadmin awal.
+ *
+ * KENAPA DI database/seeders/: ia mengisi data, bukan mengubah struktur.
+ * Struktur adalah urusan migration dan selalu dijalankan; data awal dijalankan
+ * terpisah karena isi setiap lingkungan bisa berbeda.
+ *
+ * KENAPA MEMBACA config, BUKAN process.env: sebelumnya berkas ini mengambil
+ * kredensial langsung dari process.env dan memeriksanya sendiri. Akibatnya ada
+ * dua tempat yang memeriksa hal sama dengan aturan yang bisa berbeda — dan
+ * yang di sini tidak pernah tahu kalau password aslinya kosong sampai ia
+ * benar-benar meng-hash string "undefined". Sekarang skema env yang menjamin
+ * email berformat sah, password minimal 12 karakter, dan nama tidak kosong.
+ * Seeder ini tidak akan pernah sampai berjalan kalau salah satunya tidak
+ * terpenuhi.
+ */
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
-const SALT_ROUNDS = 12;
-const SUPERADMIN_ROLE = 'superadmin';
+const { config } = require('../../config');
+const { ROLES } = require('../../constants/roles');
 
 module.exports = {
   async up(queryInterface) {
-    const email = process.env.SUPERADMIN_EMAIL;
-    const password = process.env.SUPERADMIN_PASSWORD;
-    const fullName = process.env.SUPERADMIN_FULL_NAME;
-
-    if (!email || !password || !fullName) {
-      throw new Error(
-        'SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD, dan SUPERADMIN_FULL_NAME wajib diisi di .env'
-      );
-    }
-
-    if (password.length < 12) {
-      throw new Error('SUPERADMIN_PASSWORD minimal 12 karakter');
-    }
+    const { email, password, fullName } = config.seed;
 
     const [roleRows] = await queryInterface.sequelize.query(
-      `SELECT id FROM roles WHERE name = '${SUPERADMIN_ROLE}'`
+      `SELECT id FROM roles WHERE name = '${ROLES.SUPERADMIN}'`
     );
 
     if (roleRows.length === 0) {
       throw new Error(
-        `Role "${SUPERADMIN_ROLE}" tidak ditemukan. Jalankan seeder RBAC terlebih dahulu.`
+        `Role "${ROLES.SUPERADMIN}" tidak ditemukan. Jalankan seeder RBAC terlebih dahulu.`
       );
     }
 
@@ -40,7 +42,11 @@ module.exports = {
       {
         id: userId,
         email: email.trim().toLowerCase(),
-        password_hash: await bcrypt.hash(password, SALT_ROUNDS),
+        // Cost factor diambil dari config, bukan ditulis ulang di sini.
+        // Dulu angka 12 muncul di seeder ini DAN di model User; kalau salah
+        // satunya dinaikkan, akun superadmin dan akun biasa akan punya kekuatan
+        // hash yang berbeda tanpa ada yang menyadarinya.
+        password_hash: await bcrypt.hash(password, config.password.saltRounds),
         full_name: fullName,
         is_active: true,
       },
@@ -52,14 +58,8 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    const email = process.env.SUPERADMIN_EMAIL;
-
-    if (!email) {
-      return;
-    }
-
     await queryInterface.bulkDelete('users', {
-      email: email.trim().toLowerCase(),
+      email: config.seed.email.trim().toLowerCase(),
     });
   },
 };

@@ -1,10 +1,12 @@
+const { config } = require('../config');
 const { redisClient } = require('../redis');
 const { userRepository } = require('../repositories/user.repository');
 const { permissionRepository } = require('../repositories/permission.repository');
 
-const CACHE_PREFIX = 'permissions:user:';
-const VERSION_KEY = 'permissions:version';
-const CACHE_TTL_SECONDS = 300;
+const { CACHE_KEYS } = require('../constants/cacheKeys');
+
+const CACHE_PREFIX = CACHE_KEYS.PERMISSION_USER;
+const VERSION_KEY = CACHE_KEYS.PERMISSION_VERSION;
 
 class PermissionService {
   /**
@@ -15,10 +17,12 @@ class PermissionService {
     users = userRepository,
     permissions = permissionRepository,
     cache = redisClient,
+    ttlSeconds = config.permission.cacheTtlSeconds,
   } = {}) {
     this.users = users;
     this.permissions = permissions;
     this.cache = cache;
+    this.ttlSeconds = ttlSeconds;
   }
 
   async #fetchFromDatabase(userId) {
@@ -108,7 +112,7 @@ class PermissionService {
 
     try {
       await this.cache.set(cacheKey, JSON.stringify(permissions), {
-        EX: CACHE_TTL_SECONDS,
+        EX: this.ttlSeconds,
       });
     } catch (error) {
       console.error('[REDIS] cache permission gagal disimpan:', error.message);

@@ -1,21 +1,26 @@
 const { once } = require('node:events');
 const { createClient } = require('redis');
 
-const env = require('../config/env');
+const { config } = require('../config');
 
-const RECONNECT_STEP_MS = 250;
-const RECONNECT_MAX_MS = 5000;
-const READY_TIMEOUT_MS = 3000;
+const {
+  connectTimeoutMs,
+  readyTimeoutMs,
+  reconnectStepMs: RECONNECT_STEP_MS,
+  reconnectMaxMs: RECONNECT_MAX_MS,
+} = config.cache;
+
+const READY_TIMEOUT_MS = readyTimeoutMs;
 
 const redisClient = createClient({
   socket: {
-    host: env.redis.host,
-    port: env.redis.port,
-    connectTimeout: 3000,
+    host: config.cache.host,
+    port: config.cache.port,
+    connectTimeout: connectTimeoutMs,
     reconnectStrategy: (retries) =>
       Math.min(retries * RECONNECT_STEP_MS, RECONNECT_MAX_MS),
   },
-  password: env.redis.password,
+  password: config.cache.password,
   disableOfflineQueue: true,
 });
 

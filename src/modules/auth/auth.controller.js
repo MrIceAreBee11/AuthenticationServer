@@ -1,6 +1,6 @@
 const AppError = require('../../utils/AppError');
 const { successResponse } = require('../../utils/response');
-const env = require('../../config/env');
+const { config } = require('../../config');
 const { QUEUES, publish } = require('../../queue');
 const { authService } = require('./auth.service');
 const { passwordService } = require('./password.service');
@@ -90,7 +90,7 @@ class AuthController {
     const result = await this.passwords.requestReset({ email });
 
     if (result) {
-      const resetUrl = `${env.appUrl}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
+      const resetUrl = `${config.app.url}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
 
       try {
         await publish(QUEUES.PASSWORD_RESET_EMAIL, {

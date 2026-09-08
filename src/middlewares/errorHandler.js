@@ -1,6 +1,6 @@
 const AppError = require('../utils/AppError');
 const { errorResponse } = require('../utils/response');
-const env = require('../config/env');
+const { config } = require('../config');
 const { ValidationError, UniqueConstraintError, ConnectionError } = require('sequelize');
 
 const errorHandler = (err, req, res, next) => {
@@ -39,7 +39,7 @@ const errorHandler = (err, req, res, next) => {
     res,
     500,
     'Terjadi kesalahan pada server',
-    env.isDevelopment ? { stack: err.stack } : null
+    config.app.isDevelopment ? { stack: err.stack } : null
   );
 };
 

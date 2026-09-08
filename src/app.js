@@ -8,19 +8,19 @@ const morgan = require('morgan');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 const AppError = require('./utils/AppError');
-const env = require('./config/env');
+const { config } = require('./config');
 
 const app = express();
 
-if (env.trustProxy > 0) {
-  app.set('trust proxy', env.trustProxy);
+if (config.app.trustProxy > 0) {
+  app.set('trust proxy', config.app.trustProxy);
 }
 
 // Avatar disajikan langsung oleh MinIO pada port terpisah, sehingga origin-nya
 // berbeda dari aplikasi. Tanpa pengecualian ini, CSP bawaan helmet memblokirnya.
 const minioOrigins = [
-  `http://localhost:${env.minio.port}`,
-  `http://127.0.0.1:${env.minio.port}`,
+  `http://localhost:${config.storage.port}`,
+  `http://127.0.0.1:${config.storage.port}`,
 ];
 
 app.use(
@@ -38,7 +38,7 @@ app.use(cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 
-if (env.isDevelopment) {
+if (config.app.isDevelopment) {
   app.use(morgan('dev'));
 }
 

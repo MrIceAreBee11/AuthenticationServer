@@ -1,4 +1,5 @@
 const AppError = require('../../utils/AppError');
+const { config } = require('../../config');
 const { createOpaqueToken } = require('../../utils/token');
 const { userRepository } = require('../../repositories/user.repository');
 const {
@@ -8,18 +9,22 @@ const {
   refreshTokenRepository,
 } = require('../../repositories/refreshToken.repository');
 
-const RESET_TTL_SECONDS = 15 * 60;
-const MIN_PASSWORD_LENGTH = 12;
-
 class PasswordService {
+  /**
+   * `policy` adalah irisan config.password — { minLength, resetTtlSeconds }.
+   * Disuntikkan, bukan dibaca dari environment di dalam sini, supaya pengujian
+   * dapat menyerahkan kebijakan lain tanpa menyentuh process.env global.
+   */
   constructor({
     users = userRepository,
     resetTokens = passwordResetTokenRepository,
     refreshTokens = refreshTokenRepository,
+    policy = config.password,
   } = {}) {
     this.users = users;
     this.resetTokens = resetTokens;
     this.refreshTokens = refreshTokens;
+    this.policy = policy;
   }
 
   /**
@@ -39,7 +44,7 @@ class PasswordService {
 
     const resetToken = createOpaqueToken();
 
-    await this.resetTokens.save(resetToken, user.id, RESET_TTL_SECONDS);
+    await this.resetTokens.save(resetToken, user.id, this.policy.resetTtlSeconds);
 
     return { user, resetToken };
   }
@@ -47,8 +52,8 @@ class PasswordService {
   async resetPassword({ token, newPassword }) {
     // Divalidasi sebelum token diperiksa, supaya permintaan yang pasti gagal
     // tidak membuang satu operasi baca ke Redis.
-    if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD_LENGTH) {
-      throw new AppError(`Password baru minimal ${MIN_PASSWORD_LENGTH} karakter`, 400);
+    if (typeof newPassword !== 'string' || newPassword.length < this.policy.minLength) {
+      throw new AppError(`Password baru minimal ${this.policy.minLength} karakter`, 400);
     }
 
     const userId = await this.resetTokens.findUserId(token);

@@ -3,13 +3,12 @@ const { runInTransaction } = require('../../database');
 const { roleRepository } = require('../../repositories/role.repository');
 const { permissionRepository } = require('../../repositories/permission.repository');
 const { permissionService } = require('../../services/permission.service');
+const { PROTECTED_ROLES } = require('../../constants/roles');
 
-/**
- * Role superadmin dilindungi karena namanya dijadikan acuan oleh aturan
- * keamanan di users.service. Menggantinya akan membuat perlindungan akun
- * superadmin berhenti bekerja tanpa menimbulkan error apa pun.
- */
-const PROTECTED_ROLE_NAMES = ['superadmin'];
+// Daftarnya ada di constants/roles.js, dibaca juga oleh users.service.
+// Dulu teks 'superadmin' ditulis ulang di kedua berkas; salah ketik di salah
+// satunya membuat perlindungan akun superadmin berhenti bekerja tanpa error.
+const PROTECTED_ROLE_NAMES = PROTECTED_ROLES;
 
 class RolesService {
   constructor({

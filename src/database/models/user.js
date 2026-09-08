@@ -3,7 +3,13 @@
 const { Model, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-const SALT_ROUNDS = 12;
+const { config } = require('../../config');
+
+// Cost factor bcrypt. Dibaca dari config karena ia tombol operasional: naikkan
+// saat perangkat makin cepat, dan turunkan sementara di lingkungan pengujian
+// supaya suite tidak menghabiskan waktu hanya untuk menghitung hash. Lantainya
+// dipasang di skema env (minimal 10), jadi tidak bisa dilemahkan sembarangan.
+const SALT_ROUNDS = config.password.saltRounds;
 
 module.exports = (sequelize) => {
   class User extends Model {

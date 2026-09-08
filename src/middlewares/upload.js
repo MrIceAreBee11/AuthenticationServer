@@ -2,14 +2,16 @@ const multer = require('multer');
 
 const AppError = require('../utils/AppError');
 
-const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const { config } = require('../config');
+const { BYTES } = require('../constants/units');
+
+const { maxSizeBytes, allowedMimeTypes } = config.upload.avatar;
 
 const multerUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  limits: { fileSize: maxSizeBytes, files: 1 },
   fileFilter: (req, file, callback) => {
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    if (!allowedMimeTypes.includes(file.mimetype)) {
       return callback(
         new AppError('Format file tidak didukung. Gunakan JPEG, PNG, atau WebP.', 400)
       );
@@ -22,9 +24,13 @@ const multerUpload = multer({
 const uploadAvatar = (req, res, next) => {
   multerUpload.single('avatar')(req, res, (error) => {
     if (error instanceof multer.MulterError) {
+      // Angkanya diturunkan dari batas yang sama, bukan ditulis ulang.
+      // Sebelumnya "2 MB" ada di dua tempat, dan mengubah salah satunya
+      // menghasilkan pesan yang berbohong kepada pengguna.
+      const maxMb = Math.round(maxSizeBytes / BYTES.MB);
       const message =
         error.code === 'LIMIT_FILE_SIZE'
-          ? 'Ukuran file maksimal 2 MB'
+          ? `Ukuran file maksimal ${maxMb} MB`
           : `Upload gagal: ${error.message}`;
 
       return next(new AppError(message, 400));

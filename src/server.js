@@ -1,12 +1,12 @@
 const app = require('./app');
-const env = require('./config/env');
+const { config } = require('./config');
 const { sequelize } = require('./database');
 const { connectRedis, redisClient } = require('./redis');
 const { closeQueue } = require('./queue');
 const authorize = require('./middlewares/authorize');
 const { permissionService } = require('./services/permission.service');
 
-const SHUTDOWN_TIMEOUT_MS = 10000;
+const SHUTDOWN_TIMEOUT_MS = config.app.shutdownTimeoutMs;
 
 let server = null;
 let isShuttingDown = false;
@@ -26,8 +26,8 @@ const startServer = async () => {
       `Katalog izin terverifikasi (${catalog.required} dipakai route, ${catalog.available} tersedia di database)`
     );
 
-    server = app.listen(env.port, () => {
-      console.log(`Server berjalan di http://localhost:${env.port} [${env.nodeEnv}]`);
+    server = app.listen(config.app.port, () => {
+      console.log(`Server berjalan di http://localhost:${config.app.port} [${config.app.env}]`);
     });
   } catch (error) {
     console.error('Gagal memulai server:', error.message);

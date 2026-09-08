@@ -3,7 +3,7 @@ const { verifyAccessToken } = require('../utils/token');
 const { userRepository } = require('../repositories/user.repository');
 const { tokenDenylistRepository } = require('../repositories/tokenDenylist.repository');
 
-const BEARER_PREFIX = 'Bearer ';
+const { BEARER_PREFIX } = require('../constants/cacheKeys');
 
 /**
  * Lima pemeriksaan, disusun dari yang termurah ke yang termahal. Permintaan

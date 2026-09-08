@@ -1,15 +1,15 @@
 const { Sequelize } = require('sequelize');
 
-const env = require('../config/env');
+const { config } = require('../config');
 const databaseConfig = require('../config/database');
 
-const config = databaseConfig[env.nodeEnv];
+const connectionConfig = databaseConfig[config.app.env];
 
-if (!config) {
-  throw new Error(`Konfigurasi database untuk NODE_ENV="${env.nodeEnv}" tidak ditemukan`);
+if (!connectionConfig) {
+  throw new Error(`Konfigurasi database untuk NODE_ENV="${config.app.env}" tidak ditemukan`);
 }
 
-const sequelize = new Sequelize(config);
+const sequelize = new Sequelize(connectionConfig);
 
 const models = {
   User: require('./models/user')(sequelize),

@@ -13,7 +13,9 @@ const { redisClient } = require('../redis');
  * Token ini 32 byte acak — menebaknya mustahil berapa pun kecepatannya, jadi
  * kelambatan bcrypt hanya membebani server tanpa menambah keamanan.
  */
-const KEY_PREFIX = 'password-reset:';
+const { CACHE_KEYS } = require('../constants/cacheKeys');
+
+const KEY_PREFIX = CACHE_KEYS.PASSWORD_RESET;
 
 class PasswordResetTokenRepository {
   constructor(cache = redisClient) {

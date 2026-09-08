@@ -1,24 +1,24 @@
 const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 
-const env = require('../config/env');
+const { config } = require('../config');
 
 const signAccessToken = (userId) => {
   const jti = crypto.randomUUID();
 
-  const token = jwt.sign({ jti }, env.jwt.secret, {
+  const token = jwt.sign({ jti }, config.token.secret, {
     subject: userId,
-    expiresIn: env.jwt.expiresIn,
+    expiresIn: config.token.accessTtlSeconds,
   });
 
   return { token, jti };
 };
 
 const verifyAccessToken = (token) => {
-  return jwt.verify(token, env.jwt.secret);
+  return jwt.verify(token, config.token.secret);
 };
 
-const OPAQUE_TOKEN_BYTES = 32;
+const OPAQUE_TOKEN_BYTES = config.token.opaqueBytes;
 
 /**
  * Token acak tanpa isi apa pun — kebalikan dari JWT.

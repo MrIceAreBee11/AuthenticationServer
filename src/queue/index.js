@@ -1,10 +1,8 @@
 const amqp = require('amqplib');
 
-const env = require('../config/env');
+const { config } = require('../config');
+const { QUEUES } = require('../constants/cacheKeys');
 
-const QUEUES = {
-  PASSWORD_RESET_EMAIL: 'email.password-reset',
-};
 
 let connection = null;
 let channel = null;
@@ -14,7 +12,7 @@ const connectQueue = async () => {
     return channel;
   }
 
-  connection = await amqp.connect(env.rabbitmq.url);
+  connection = await amqp.connect(config.queue.url);
 
   connection.on('error', (error) => {
     console.error('[RABBITMQ ERROR]', error.message);

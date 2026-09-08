@@ -1,24 +1,20 @@
 const nodemailer = require('nodemailer');
 
-const env = require('../config/env');
+const { config } = require('../config');
 const { QUEUES, connectQueue, closeQueue } = require('../queue');
 
-const REQUIRED_SMTP_VARS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM'];
-
-const buildTransporter = () => {
-  const missing = REQUIRED_SMTP_VARS.filter((key) => !process.env[key]);
-
-  if (missing.length > 0) {
-    throw new Error(`Konfigurasi SMTP belum lengkap: ${missing.join(', ')}`);
-  }
-
-  return nodemailer.createTransport({
-    host: env.smtp.host,
-    port: env.smtp.port,
-    secure: env.smtp.secure,
-    auth: { user: env.smtp.user, pass: env.smtp.password },
+// Tidak ada lagi daftar "variabel SMTP wajib" di sini. Dulu ada, dan itu
+// berarti ada dua sumber kebenaran untuk pertanyaan yang sama — daftar di
+// worker bisa berbeda isi dari daftar di config, dan yang ketinggalan baru
+// terasa saat email gagal terkirim. Sekarang skema env yang menjaminnya, dan
+// worker tidak akan pernah sampai ke titik ini kalau konfigurasinya kurang.
+const buildTransporter = () =>
+  nodemailer.createTransport({
+    host: config.mail.host,
+    port: config.mail.port,
+    secure: config.mail.secure,
+    auth: { user: config.mail.user, pass: config.mail.password },
   });
-};
 
 const buildResetEmail = ({ fullName, resetUrl }) => ({
   subject: 'Reset Password Akun Anda',
@@ -61,7 +57,7 @@ const startWorker = async () => {
         const email = buildResetEmail(payload);
 
         await transporter.sendMail({
-          from: env.smtp.from,
+          from: config.mail.from,
           to: payload.to,
           ...email,
         });

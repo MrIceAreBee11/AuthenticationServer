@@ -3,11 +3,11 @@ const { RedisStore } = require('rate-limit-redis');
 
 const { redisClient, connectRedis } = require('../redis');
 const { errorResponse } = require('../utils/response');
+const { config } = require('../config');
+const { CACHE_KEYS } = require('../constants/cacheKeys');
+const { MS } = require('../constants/units');
 
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
-const ONE_HOUR = 60 * 60 * 1000;
-const MAX_LOGIN_ATTEMPTS = 5;
-const MAX_RESET_REQUESTS = 3;
+
 
 const buildStore = (prefix) =>
   new RedisStore({
@@ -20,9 +20,9 @@ const buildStore = (prefix) =>
   });
 
 const loginRateLimiter = rateLimit({
-  store: buildStore('ratelimit:login:'),
-  windowMs: FIFTEEN_MINUTES,
-  limit: MAX_LOGIN_ATTEMPTS,
+  store: buildStore(CACHE_KEYS.RATE_LIMIT_LOGIN),
+  windowMs: config.rateLimit.login.windowMs,
+  limit: config.rateLimit.login.maxAttempts,
   skipSuccessfulRequests: true,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
@@ -30,21 +30,21 @@ const loginRateLimiter = rateLimit({
     errorResponse(
       res,
       429,
-      'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.'
+      `Terlalu banyak percobaan login. Silakan coba lagi dalam ${config.rateLimit.login.windowMs / MS.MINUTE} menit.`
     ),
 });
 
 const passwordResetRateLimiter = rateLimit({
-  store: buildStore('ratelimit:reset:'),
-  windowMs: ONE_HOUR,
-  limit: MAX_RESET_REQUESTS,
+  store: buildStore(CACHE_KEYS.RATE_LIMIT_PASSWORD_RESET),
+  windowMs: config.rateLimit.passwordReset.windowMs,
+  limit: config.rateLimit.passwordReset.maxAttempts,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: (req, res) =>
     errorResponse(
       res,
       429,
-      'Terlalu banyak permintaan reset password. Silakan coba lagi dalam 1 jam.'
+      `Terlalu banyak permintaan reset password. Silakan coba lagi dalam ${config.rateLimit.passwordReset.windowMs / MS.HOUR} jam.`
     ),
 });
 

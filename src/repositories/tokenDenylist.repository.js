@@ -8,7 +8,9 @@ const { redisClient } = require('../redis');
  * token yang di-logout tetap diterima, tanpa error apa pun. Sekarang prefix
  * itu hanya ada di sini.
  */
-const KEY_PREFIX = 'token:denylist:';
+const { CACHE_KEYS } = require('../constants/cacheKeys');
+
+const KEY_PREFIX = CACHE_KEYS.TOKEN_DENYLIST;
 
 class TokenDenylistRepository {
   constructor(cache = redisClient) {
