@@ -60,7 +60,10 @@ class ApiServer {
    * Graceful shutdown: stop terima incoming request terlebih dahulu,
    * selesaikan inflight request, lalu tutup koneksi database/cache.
    */
-  async shutdown(signal) {
+  // exitCode dipisah dari signal: penutupan atas permintaan operator keluar 0,
+  // penutupan karena crash keluar 1. Kalau keduanya keluar 0, orchestrator dan
+  // monitoring tidak dapat membedakan "dihentikan sengaja" dari "mati sendiri".
+  async shutdown(signal, exitCode = 0) {
     if (this.#shuttingDown) {
       return;
     }
@@ -68,8 +71,7 @@ class ApiServer {
     this.#shuttingDown = true;
     this.logger.info('sinyal penutupan diterima', { signal });
 
-    // Jaring terakhir kalau ada koneksi yang menolak tertutup. unref() supaya
-    // timer ini sendiri tidak menahan proses tetap hidup saat penutupan sukses.
+    // Safety timeout jika ada koneksi gantung; unref() agar timer tidak menahan event loop
     const forceExit = setTimeout(() => {
       this.logger.error('shutdown melewati batas waktu, keluar paksa');
       process.exit(1);
@@ -85,7 +87,7 @@ class ApiServer {
 
       await this.container.close();
       this.logger.info('semua koneksi ditutup');
-      process.exit(0);
+      process.exit(exitCode);
     } catch (error) {
       this.logger.exception('gagal menutup dengan rapi', error);
       process.exit(1);
@@ -105,12 +107,12 @@ class ApiServer {
         'promise rejection tak tertangani',
         reason instanceof Error ? reason : new Error(String(reason))
       );
-      this.shutdown('unhandledRejection');
+      this.shutdown('unhandledRejection', 1);
     });
 
     process.on('uncaughtException', (error) => {
       this.logger.exception('exception tak tertangani', error);
-      this.shutdown('uncaughtException');
+      this.shutdown('uncaughtException', 1);
     });
   }
 }

@@ -39,6 +39,12 @@ const createApp = (container, settings) => {
     `http://127.0.0.1:${settings.storage.port}`,
   ];
 
+  // Paling awal: middleware di atasnya belum punya requestId, jadi log-nya
+  // tidak dapat dihubungkan ke permintaan mana pun. Ia juga menggantikan
+  // morgan — satu baris JSON dengan status dan durasi lebih berguna daripada
+  // teks bebas, dan bisa difilter per field.
+  app.use(container.requestLogger.handle);
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -49,12 +55,6 @@ const createApp = (container, settings) => {
       },
     })
   );
-
-  // Paling awal: middleware di atasnya belum punya requestId, jadi log-nya
-  // tidak dapat dihubungkan ke permintaan mana pun. Ia juga menggantikan
-  // morgan — satu baris JSON dengan status dan durasi lebih berguna daripada
-  // teks bebas, dan bisa difilter per field.
-  app.use(container.requestLogger.handle);
 
   app.use(cors());
 

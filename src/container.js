@@ -213,14 +213,27 @@ class Container {
   async connect() {
     await this.database.connect();
     await this.cache.connect();
+
+    // Antrean disambungkan di sini, bukan dibiarkan tersambung sendiri saat
+    // permintaan pertama memakainya. Handler 'error' dan 'close'-nya didaftarkan
+    // di dalam connect(), jadi kalau connect() pertama kali dipanggil dari
+    // dalam sebuah permintaan, kedua handler itu mewarisi requestId permintaan
+    // tersebut SELAMANYA — dan setiap log koneksi antrean setelahnya, termasuk
+    // saat shutdown, salah tertaut ke permintaan yang sudah lama selesai.
+    //
+    // Kegagalannya tidak menghentikan start: antrean bukan dependency wajib,
+    // hanya pengiriman email yang bergantung padanya.
+    await this.queue
+      .connect()
+      .catch((error) => this.logger.exception('antrean belum tersambung saat start', error));
   }
 
   // Menutup resource satu per satu. Kalau salah satu gagal, proses tetap
   // lanjut supaya resource lain tetap punya kesempatan untuk ditutup.
   async close() {
     await this.queue.close().catch(() => {});
-    await this.cache.close();
-    await this.database.close();
+    await this.cache.close().catch(() => {});
+    await this.database.close().catch(() => {});
   }
 }
 
