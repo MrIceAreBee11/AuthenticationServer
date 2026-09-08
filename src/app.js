@@ -1,23 +1,11 @@
 /**
- * BERKAS INI: penyusun aplikasi Express — middleware global, route, penutup.
+ * Express app factory.
  *
- * KENAPA TERPISAH DARI server.js: berkas ini hanya MERAKIT aplikasi dan tidak
- * pernah membuka port. Itulah yang membuat pengujian end-to-end dapat memanggil
- * app.listen(0) pada port acak tanpa bertabrakan dengan server yang sedang
- * berjalan, dan tanpa ikut menyalakan penanganan SIGTERM.
+ * Dipisah dari server.js agar mudah dites (e2e bisa binding ke ephemeral port
+ * tanpa bentrok dengan running instance atau handler SIGTERM).
  *
- * KENAPA PABRIK, BUKAN INSTANCE: `const app = express()` di module scope
- * berarti aplikasinya terbentuk sebagai efek samping saat berkas di-require —
- * termasuk seluruh koneksi yang dipakai middleware-nya. Sekarang container yang
- * menentukan kapan itu terjadi.
- *
- * URUTAN PEMASANGAN PENTING dan tidak boleh diacak:
- *   helmet & cors -> header keamanan sebelum apa pun sempat menjawab
- *   parser        -> req.body harus terisi sebelum controller dipanggil
- *   route API     -> didaftarkan SEBELUM berkas statis, supaya /api/v1 menang
- *   berkas statis -> antarmuka demo
- *   404           -> apa pun yang tidak cocok di atas
- *   errorHandler  -> Express hanya mengenalinya kalau terdaftar paling akhir
+ * Menggunakan factory function supaya inisialisasi app dan dependency-nya
+ * dikontrol penuh oleh container, bukan via module side-effects saat di-require.
  */
 const path = require('node:path');
 
@@ -27,7 +15,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 
 const { buildRoutes } = require('./routes');
-const AppError = require('./utils/AppError');
+const { NotFoundError } = require('./utils/AppError');
+const { ERROR_CODES } = require('./constants/errorCodes');
 
 const API_PREFIX = '/api/v1';
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -35,16 +24,14 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const createApp = (container, settings) => {
   const app = express();
 
-  // trust proxy hanya dinyalakan kalau memang ada proxy di depan. Menyalakannya
-  // tanpa proxy membuat header X-Forwarded-For dari klien dipercaya, dan
-  // pembatas laju bisa dielakkan hanya dengan mengarang header.
+  // Hanya enable jika ada reverse proxy di depan. Jika aktif tanpa proxy,
+  // client bisa spoof header X-Forwarded-For untuk bypass rate limiter.
   if (settings.app.trustProxy > 0) {
     app.set('trust proxy', settings.app.trustProxy);
   }
 
-  // Avatar disajikan langsung oleh MinIO pada port terpisah, sehingga
-  // origin-nya berbeda dari aplikasi. Tanpa pengecualian ini, CSP bawaan
-  // helmet memblokir gambarnya.
+  // MinIO jalan di port berbeda. Whitelist origin-nya di img-src
+  // agar avatar tidak diblokir oleh default CSP Helmet.
   const minioOrigins = [
     `http://localhost:${settings.storage.port}`,
     `http://127.0.0.1:${settings.storage.port}`,
@@ -63,8 +50,7 @@ const createApp = (container, settings) => {
 
   app.use(cors());
 
-  // Batas ukuran body: tanpa ini, satu permintaan JSON raksasa cukup untuk
-  // menghabiskan memori proses.
+  // Cegah DoS via payload JSON/form berukuran besar
   app.use(express.json({ limit: settings.app.jsonBodyLimit }));
   app.use(express.urlencoded({ extended: true, limit: settings.app.jsonBodyLimit }));
 
@@ -72,13 +58,20 @@ const createApp = (container, settings) => {
     app.use(morgan('dev'));
   }
 
+  // Route API harus didaftarkan sebelum static files agar prefix /api/v1 diprioritaskan
   app.use(API_PREFIX, buildRoutes(container));
   app.use(express.static(PUBLIC_DIR));
 
+  // Fallback 404 untuk endpoint yang tidak terdaftar
   app.use((req, res, next) => {
-    next(new AppError(`Route ${req.method} ${req.originalUrl} tidak ditemukan`, 404));
+    next(
+      new NotFoundError(
+        `Route ${req.method} ${req.originalUrl} tidak ditemukan`,
+        ERROR_CODES.ROUTE_NOT_FOUND
+      )
+    );
   });
-
+  // Global error handler harus selalu berada di urutan paling akhir
   app.use(container.errorHandler.handle);
 
   return app;

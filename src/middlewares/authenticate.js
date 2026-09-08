@@ -21,8 +21,12 @@
  *   4. Pengguna ada dan berstatus aktif    -> PostgreSQL
  *   5. Token terbit setelah ganti password -> perbandingan angka
  */
-const AppError = require('../utils/AppError');
+const {
+  UnauthorizedError,
+  ServiceUnavailableError,
+} = require('../utils/AppError');
 const { BEARER_PREFIX } = require('../constants/cacheKeys');
+const { ERROR_CODES } = require('../constants/errorCodes');
 
 class AuthenticateMiddleware {
   constructor({ users, denylist, tokens }) {
@@ -33,7 +37,7 @@ class AuthenticateMiddleware {
 
   #readToken(authHeader) {
     if (!authHeader || !authHeader.startsWith(BEARER_PREFIX)) {
-      throw new AppError('Token tidak ditemukan', 401);
+      throw new UnauthorizedError('Token tidak ditemukan', ERROR_CODES.TOKEN_MISSING);
     }
 
     return authHeader.slice(BEARER_PREFIX.length).trim();
@@ -48,9 +52,14 @@ class AuthenticateMiddleware {
     try {
       return this.tokens.verifyAccessToken(token);
     } catch (error) {
-      throw new AppError(
-        error.name === 'TokenExpiredError' ? 'Token sudah kedaluwarsa' : 'Token tidak valid',
-        401
+      // Dibedakan kodenya, bukan hanya pesannya. Keduanya 401, tetapi
+      // TOKEN_EXPIRED berarti "perbarui lalu ulangi" sementara TOKEN_INVALID
+      // berarti "jangan diulangi". Klien tidak boleh menebaknya dari teks.
+      const expired = error.name === 'TokenExpiredError';
+
+      throw new UnauthorizedError(
+        expired ? 'Token sudah kedaluwarsa' : 'Token tidak valid',
+        expired ? ERROR_CODES.TOKEN_EXPIRED : ERROR_CODES.TOKEN_INVALID
       );
     }
   }
@@ -66,11 +75,17 @@ class AuthenticateMiddleware {
       // Redis adalah satu-satunya sumber kebenaran untuk "token ini sudah
       // dicabut atau belum". Kalau tidak terbaca, kita tidak tahu — dan
       // melanjutkan berarti menerima token yang mungkin sudah di-logout.
-      throw new AppError('Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.', 503);
+      throw new ServiceUnavailableError(
+        'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.',
+        ERROR_CODES.DEPENDENCY_UNAVAILABLE
+      );
     }
 
     if (isRevoked) {
-      throw new AppError('Token sudah tidak berlaku. Silakan login kembali.', 401);
+      throw new UnauthorizedError(
+        'Token sudah tidak berlaku. Silakan login kembali.',
+        ERROR_CODES.TOKEN_REVOKED
+      );
     }
   }
 
@@ -86,7 +101,10 @@ class AuthenticateMiddleware {
     }
 
     if (issuedAtSeconds < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
-      throw new AppError('Password telah diubah. Silakan login kembali.', 401);
+      throw new UnauthorizedError(
+        'Password telah diubah. Silakan login kembali.',
+        ERROR_CODES.PASSWORD_CHANGED
+      );
     }
   }
 
@@ -99,7 +117,10 @@ class AuthenticateMiddleware {
     const user = await this.users.findById(payload.sub);
 
     if (!user || !user.isActive) {
-      throw new AppError('Akun tidak ditemukan atau tidak aktif', 401);
+      throw new UnauthorizedError(
+        'Akun tidak ditemukan atau tidak aktif',
+        ERROR_CODES.ACCOUNT_UNKNOWN
+      );
     }
 
     this.#assertIssuedAfterPasswordChange(user, payload.iat);

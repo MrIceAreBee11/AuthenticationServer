@@ -6,6 +6,7 @@
  * kenapa ada endpoint tanpa autentikasi di sana.
  */
 const { successResponse, errorResponse } = require('../../utils/response');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 
 class HealthController {
   constructor({ health, environment }) {
@@ -44,7 +45,10 @@ class HealthController {
     };
 
     if (!databaseUp || !cacheUp) {
-      return errorResponse(res, 503, 'Service belum siap', checks);
+      return errorResponse(res, 503, 'Service belum siap', {
+        code: ERROR_CODES.DEPENDENCY_UNAVAILABLE,
+        details: checks,
+      });
     }
 
     return successResponse(res, 200, 'Service siap menerima request', checks);

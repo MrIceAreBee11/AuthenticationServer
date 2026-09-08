@@ -16,7 +16,8 @@
  */
 const multer = require('multer');
 
-const AppError = require('../utils/AppError');
+const { BadRequestError } = require('../utils/AppError');
+const { ERROR_CODES } = require('../constants/errorCodes');
 const { BYTES } = require('../constants/units');
 
 const FIELD_NAME = 'avatar';
@@ -31,11 +32,11 @@ class UploadMiddleware {
       fileFilter: (req, file, callback) => {
         if (!avatar.allowedMimeTypes.includes(file.mimetype)) {
           callback(
-            new AppError(
+            new BadRequestError(
               `Format file tidak didukung. Gunakan ${avatar.allowedMimeTypes
                 .map((type) => type.replace('image/', '').toUpperCase())
                 .join(', ')}.`,
-              400
+              ERROR_CODES.FILE_TYPE_UNSUPPORTED
             )
           );
 
@@ -54,11 +55,11 @@ class UploadMiddleware {
 
     const maxMb = Math.round(this.maxSizeBytes / BYTES.MB);
 
-    return new AppError(
-      error.code === 'LIMIT_FILE_SIZE'
-        ? `Ukuran file maksimal ${maxMb} MB`
-        : `Upload gagal: ${error.message}`,
-      400
+    const tooLarge = error.code === 'LIMIT_FILE_SIZE';
+
+    return new BadRequestError(
+      tooLarge ? `Ukuran file maksimal ${maxMb} MB` : `Upload gagal: ${error.message}`,
+      tooLarge ? ERROR_CODES.FILE_TOO_LARGE : ERROR_CODES.VALIDATION_FAILED
     );
   }
 
@@ -77,7 +78,12 @@ class UploadMiddleware {
       }
 
       if (!req.file) {
-        next(new AppError(`File avatar wajib diunggah pada field "${FIELD_NAME}"`, 400));
+        next(
+          new BadRequestError(
+            `File avatar wajib diunggah pada field "${FIELD_NAME}"`,
+            ERROR_CODES.FILE_MISSING
+          )
+        );
 
         return;
       }

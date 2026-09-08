@@ -23,6 +23,7 @@ const { RedisStore } = require('rate-limit-redis');
 
 const { errorResponse } = require('../utils/response');
 const { CACHE_KEYS } = require('../constants/cacheKeys');
+const { ERROR_CODES } = require('../constants/errorCodes');
 const { MS } = require('../constants/units');
 
 class RateLimiterFactory {
@@ -45,7 +46,8 @@ class RateLimiterFactory {
       skipSuccessfulRequests,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
-      handler: (req, res) => errorResponse(res, 429, message),
+      handler: (req, res) =>
+        errorResponse(res, 429, message, { code: ERROR_CODES.RATE_LIMITED }),
     });
   }
 

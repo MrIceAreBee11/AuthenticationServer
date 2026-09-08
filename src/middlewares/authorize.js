@@ -20,7 +20,8 @@
  * tidak cocok, aplikasi menolak menyala — jauh lebih baik daripada endpoint
  * yang menjawab 403 selamanya tanpa penjelasan.
  */
-const AppError = require('../utils/AppError');
+const { ForbiddenError } = require('../utils/AppError');
+const { ERROR_CODES } = require('../constants/errorCodes');
 
 class AuthorizeMiddleware {
   #required = new Set();
@@ -63,7 +64,10 @@ class AuthorizeMiddleware {
       const owned = await this.permissions.getUserPermissions(req.user.id);
 
       if (names.some((name) => !owned.includes(name))) {
-        throw new AppError('Anda tidak memiliki izin untuk mengakses sumber daya ini', 403);
+        throw new ForbiddenError(
+          'Anda tidak memiliki izin untuk mengakses sumber daya ini',
+          ERROR_CODES.PERMISSION_DENIED
+        );
       }
 
       req.permissions = owned;

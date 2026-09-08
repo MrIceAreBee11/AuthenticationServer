@@ -24,10 +24,17 @@ const successResponse = (res, statusCode, message, data = null, meta = null) => 
   });
 };
 
-const errorResponse = (res, statusCode, message, details = null) => {
+/**
+ * `code` adalah kode yang boleh diandalkan klien; `message` untuk manusia dan
+ * boleh berubah kapan saja. Opsinya berupa objek, bukan parameter berurutan,
+ * supaya penambahan field berikutnya tidak menggeser arti argumen yang sudah
+ * dipakai pemanggil lain.
+ */
+const errorResponse = (res, statusCode, message, { code = null, details = null } = {}) => {
   return res.status(statusCode).json({
     success: false,
     message,
+    ...(code && { code }),
     data: null,
     ...(details && { details }),
   });

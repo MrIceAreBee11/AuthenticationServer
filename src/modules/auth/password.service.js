@@ -5,7 +5,8 @@
  * tetapi alurnya berbeda — yang ini melibatkan antrean email dan token
  * berumur pendek, dan memisahkannya menjaga kedua class tetap kecil.
  */
-const AppError = require('../../utils/AppError');
+const { BadRequestError } = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 
 class PasswordService {
   /**
@@ -53,7 +54,10 @@ class PasswordService {
     // Divalidasi sebelum token diperiksa, supaya permintaan yang pasti gagal
     // tidak membuang satu operasi baca ke Redis.
     if (typeof newPassword !== 'string' || newPassword.length < this.policy.minLength) {
-      throw new AppError(`Password baru minimal ${this.policy.minLength} karakter`, 400);
+      throw new BadRequestError(
+        `Password baru minimal ${this.policy.minLength} karakter`,
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     const userId = await this.resetTokens.findUserId(token);
@@ -61,14 +65,20 @@ class PasswordService {
     // Pesan sengaja sama untuk token tidak ada, kedaluwarsa, maupun akun
     // nonaktif — ketiganya tidak boleh dapat dibedakan oleh pemanggil.
     if (!userId) {
-      throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
+      throw new BadRequestError(
+        'Token reset tidak valid atau sudah kedaluwarsa',
+        ERROR_CODES.RESET_TOKEN_INVALID
+      );
     }
 
     const user = await this.users.findById(userId, { includePassword: true });
 
     if (!user || !user.isActive) {
       await this.resetTokens.remove(token);
-      throw new AppError('Token reset tidak valid atau sudah kedaluwarsa', 400);
+      throw new BadRequestError(
+        'Token reset tidak valid atau sudah kedaluwarsa',
+        ERROR_CODES.RESET_TOKEN_INVALID
+      );
     }
 
     // Urutannya disengaja: password diubah dulu, token dihapus kemudian.

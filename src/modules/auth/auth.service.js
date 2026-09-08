@@ -8,7 +8,13 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
-const AppError = require('../../utils/AppError');
+const {
+  BadRequestError,
+  UnauthorizedError,
+  ForbiddenError,
+  NotFoundError,
+} = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 
 /**
  * Hash asli dari string acak yang tidak pernah menjadi password siapa pun.
@@ -83,13 +89,16 @@ class AuthService {
     // Pesan sengaja seragam untuk email tak terdaftar maupun password salah,
     // agar tidak dapat dipakai memetakan daftar pengguna.
     if (!user || !isPasswordValid) {
-      throw new AppError('Email atau password salah', 401);
+      throw new UnauthorizedError('Email atau password salah', ERROR_CODES.CREDENTIALS_INVALID);
     }
 
     // Status aktif diperiksa SETELAH password terverifikasi. Kalau dibalik,
     // pesannya mengonfirmasi bahwa email tersebut terdaftar.
     if (!user.isActive) {
-      throw new AppError('Akun Anda tidak aktif. Hubungi administrator.', 403);
+      throw new ForbiddenError(
+        'Akun Anda tidak aktif. Hubungi administrator.',
+        ERROR_CODES.ACCOUNT_INACTIVE
+      );
     }
 
     await this.users.update(user, { lastLoginAt: new Date() });
@@ -117,13 +126,16 @@ class AuthService {
    */
   async refresh({ refreshToken }) {
     if (typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
-      throw new AppError('Refresh token wajib diisi', 400);
+      throw new BadRequestError('Refresh token wajib diisi', ERROR_CODES.VALIDATION_FAILED);
     }
 
     const stored = await this.refreshTokens.findByToken(refreshToken);
 
     if (!stored) {
-      throw new AppError(PESAN_REFRESH_TIDAK_VALID, 401);
+      throw new UnauthorizedError(
+        PESAN_REFRESH_TIDAK_VALID,
+        ERROR_CODES.REFRESH_TOKEN_INVALID
+      );
     }
 
     if (stored.revokedAt) {
@@ -141,11 +153,17 @@ class AuthService {
         `[AUTH] refresh token dipakai ulang, rangkaian sesi dicabut (user ${stored.userId})`
       );
 
-      throw new AppError(PESAN_REFRESH_TIDAK_VALID, 401);
+      throw new UnauthorizedError(
+        PESAN_REFRESH_TIDAK_VALID,
+        ERROR_CODES.REFRESH_TOKEN_INVALID
+      );
     }
 
     if (stored.expiresAt.getTime() <= Date.now()) {
-      throw new AppError('Sesi Anda sudah berakhir. Silakan login kembali.', 401);
+      throw new UnauthorizedError(
+        'Sesi Anda sudah berakhir. Silakan login kembali.',
+        ERROR_CODES.SESSION_EXPIRED
+      );
     }
 
     const user = await this.users.findById(stored.userId);
@@ -153,7 +171,10 @@ class AuthService {
     if (!user || !user.isActive) {
       await this.refreshTokens.revokeFamily(stored.familyId);
 
-      throw new AppError(PESAN_REFRESH_TIDAK_VALID, 401);
+      throw new UnauthorizedError(
+        PESAN_REFRESH_TIDAK_VALID,
+        ERROR_CODES.REFRESH_TOKEN_INVALID
+      );
     }
 
     // Urutannya disengaja: yang lama dicabut lebih dulu, penggantinya dibuat
@@ -178,7 +199,7 @@ class AuthService {
     });
 
     if (!user) {
-      throw new AppError('User tidak ditemukan', 404);
+      throw new NotFoundError('User tidak ditemukan', ERROR_CODES.NOT_FOUND);
     }
 
     return user;

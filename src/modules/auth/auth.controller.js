@@ -8,7 +8,8 @@
  * dan tidak bisa diuji tanpa broker hidup, padahal yang benar-benar ia
  * butuhkan hanya "sesuatu yang bisa dititipi pesan".
  */
-const AppError = require('../../utils/AppError');
+const { BadRequestError } = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 const { successResponse } = require('../../utils/response');
 const { QUEUES } = require('../../constants/cacheKeys');
 
@@ -29,7 +30,10 @@ class AuthController {
     const { email, password } = req.body ?? {};
 
     if (!email || !password) {
-      throw new AppError('Email dan password wajib diisi', 400);
+      throw new BadRequestError(
+        'Email dan password wajib diisi',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     const result = await this.auth.login({ email, password });
@@ -88,7 +92,7 @@ class AuthController {
     const { email } = req.body ?? {};
 
     if (!email) {
-      throw new AppError('Email wajib diisi', 400);
+      throw new BadRequestError('Email wajib diisi', ERROR_CODES.VALIDATION_FAILED);
     }
 
     const result = await this.passwords.requestReset({ email });
@@ -121,7 +125,10 @@ class AuthController {
     const { token, newPassword } = req.body ?? {};
 
     if (!token || !newPassword) {
-      throw new AppError('Token dan password baru wajib diisi', 400);
+      throw new BadRequestError(
+        'Token dan password baru wajib diisi',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     await this.passwords.resetPassword({ token, newPassword });

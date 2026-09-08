@@ -12,7 +12,12 @@
  * di middleware, karena hanya di sini identitas targetnya sudah diketahui.
  */
 
-const AppError = require('../../utils/AppError');
+const {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 const { ROLES } = require('../../constants/roles');
 
 
@@ -38,13 +43,13 @@ class UsersService {
    */
   async #findOrFail(userId) {
     if (!UUID_PATTERN.test(String(userId))) {
-      throw new AppError('ID user tidak valid', 400);
+      throw new BadRequestError('ID user tidak valid', ERROR_CODES.INVALID_ID);
     }
 
     const user = await this.users.findById(userId, { includeRoles: true });
 
     if (!user) {
-      throw new AppError('User tidak ditemukan', 404);
+      throw new NotFoundError('User tidak ditemukan', ERROR_CODES.NOT_FOUND);
     }
 
     return user;
@@ -64,9 +69,9 @@ class UsersService {
    */
   async #assertCanManage(actorId, target) {
     if (actorId === target.id) {
-      throw new AppError(
+      throw new ForbiddenError(
         'Gunakan endpoint /profile untuk mengubah akun Anda sendiri',
-        403
+        ERROR_CODES.SELF_MANAGEMENT_FORBIDDEN
       );
     }
 
@@ -74,7 +79,10 @@ class UsersService {
       const actor = await this.#findOrFail(actorId);
 
       if (!this.#isSuperadmin(actor)) {
-        throw new AppError('Anda tidak dapat mengelola akun superadmin', 403);
+        throw new ForbiddenError(
+          'Anda tidak dapat mengelola akun superadmin',
+          ERROR_CODES.SUPERADMIN_PROTECTED
+        );
       }
     }
   }
@@ -85,7 +93,7 @@ class UsersService {
     }
 
     if (!Array.isArray(roleIds)) {
-      throw new AppError('roleIds harus berupa array', 400);
+      throw new BadRequestError('roleIds harus berupa array', ERROR_CODES.VALIDATION_FAILED);
     }
 
     if (roleIds.length === 0) {
@@ -95,7 +103,10 @@ class UsersService {
     const roles = await this.roles.findByIds(roleIds);
 
     if (roles.length !== new Set(roleIds).size) {
-      throw new AppError('Sebagian roleIds tidak ditemukan', 400);
+      throw new BadRequestError(
+        'Sebagian roleIds tidak ditemukan',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     return roles;
@@ -133,11 +144,17 @@ class UsersService {
 
   async create({ email, password, fullName, phone, roleIds }) {
     if (!email || !password || !fullName) {
-      throw new AppError('Email, password, dan nama lengkap wajib diisi', 400);
+      throw new BadRequestError(
+        'Email, password, dan nama lengkap wajib diisi',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     if (String(password).length < this.policy.minLength) {
-      throw new AppError(`Password minimal ${this.policy.minLength} karakter`, 400);
+      throw new BadRequestError(
+        `Password minimal ${this.policy.minLength} karakter`,
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     const roles = await this.#resolveRoles(roleIds);
@@ -178,14 +195,20 @@ class UsersService {
 
     if (isActive !== undefined) {
       if (typeof isActive !== 'boolean') {
-        throw new AppError('isActive harus bernilai true atau false', 400);
+        throw new BadRequestError(
+          'isActive harus bernilai true atau false',
+          ERROR_CODES.VALIDATION_FAILED
+        );
       }
 
       changes.isActive = isActive;
     }
 
     if (Object.keys(changes).length === 0) {
-      throw new AppError('Tidak ada data yang dikirim untuk diubah', 400);
+      throw new BadRequestError(
+        'Tidak ada data yang dikirim untuk diubah',
+        ERROR_CODES.NOTHING_TO_UPDATE
+      );
     }
 
     await this.users.update(target, changes);
@@ -201,7 +224,7 @@ class UsersService {
     const roles = await this.#resolveRoles(roleIds);
 
     if (roles === null) {
-      throw new AppError('roleIds wajib dikirim', 400);
+      throw new BadRequestError('roleIds wajib dikirim', ERROR_CODES.VALIDATION_FAILED);
     }
 
     // Urutannya wajib begini: ubah sumber kebenaran dulu, baru buang cache.

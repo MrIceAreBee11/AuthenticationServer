@@ -1,26 +1,11 @@
 /**
- * BERKAS INI: composition root — SATU-SATUNYA tempat kata `new` dipanggil.
+ * Composition root untuk dependency injection.
  *
- * KENAPA ADA: sebelum berkas ini, setiap modul mengakhiri dirinya dengan
- * `module.exports = { AuthService, authService: new AuthService() }`. Ada 24
- * baris seperti itu. Constructor-nya memang menerima dependensi, tetapi nilai
- * bawaannya me-require implementasi konkret — jadi setiap berkas logika tetap
- * tahu siapa kolaboratornya, dan manfaat "loosely coupled" yang menjadi alasan
- * memakai class sejak awal tidak pernah benar-benar tercapai. Mengganti satu
- * implementasi masih berarti mengedit berkasnya.
+ * Semua instansiasi (`new`) dipusatkan di sini agar layer service, repo,
+ * dan controller tetap decoupled tanpa bergantung langsung pada implementasi konkret.
  *
- * KENAPA DI src/ DAN BUKAN DI DALAM SALAH SATU MODUL: ia harus tahu segalanya.
- * Berkas yang tahu segalanya tidak boleh berada di dalam modul mana pun, atau
- * modul itu otomatis bergantung pada seluruh aplikasi.
- *
- * URUTAN PERAKITAN mengikuti arah ketergantungan, dari yang tidak bergantung
- * pada apa pun sampai yang bergantung pada segalanya:
- *
- *   config -> adapter -> repository -> service -> middleware -> controller
- *
- * Tidak ada anak panah yang menunjuk ke belakang. Kalau suatu saat ada, berarti
- * ada ketergantungan melingkar — dan tempat pertama yang akan meneriakkannya
- * adalah berkas ini, saat merakit.
+ * Urutan perakitan searah untuk mencegah circular dependency:
+ * config -> adapter -> repository -> service -> middleware -> controller
  */
 const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
@@ -83,7 +68,7 @@ class Container {
     const health = new HealthRepository({ database: this.database, cache: this.cache });
 
     // ---------- service ----------
-    // permissionService dipakai lintas fitur, jadi ia dirakit lebih dulu.
+    // PermissionService di-cache dan di-share ke auth/roles/users
     const permissionCache = new PermissionService({
       users,
       permissions,
@@ -176,17 +161,14 @@ class Container {
     };
   }
 
-  /** Dipanggil server.js dan worker: membuktikan dependensi benar-benar hidup. */
+  /** Verifikasi kesiapan koneksi sebelum server/worker mulai menerima request */
   async connect() {
     await this.database.connect();
     await this.cache.connect();
   }
 
-  /**
-   * Ditutup dalam urutan terbalik dari perakitan. Kegagalan satu penutupan
-   * tidak boleh menghentikan sisanya — tujuannya melepas sebanyak mungkin
-   * sumber daya, bukan menutup dengan sempurna.
-   */
+  // Teardown dengan urutan terbalik.
+  // Error di queue diabaikan agar cache & DB tetap dipaksa close saat shutdown.
   async close() {
     await this.queue.close().catch(() => {});
     await this.cache.close();

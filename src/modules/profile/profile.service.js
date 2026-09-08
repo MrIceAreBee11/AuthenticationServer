@@ -15,7 +15,8 @@
 
 const crypto = require('node:crypto');
 
-const AppError = require('../../utils/AppError');
+const { BadRequestError, NotFoundError } = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 
 const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/;
 
@@ -36,7 +37,7 @@ class ProfileService {
     const user = await this.users.findById(userId, { includeRoles: true });
 
     if (!user) {
-      throw new AppError('User tidak ditemukan', 404);
+      throw new NotFoundError('User tidak ditemukan', ERROR_CODES.NOT_FOUND);
     }
 
     return user;
@@ -93,14 +94,20 @@ class ProfileService {
     // yang pertama berarti jangan disentuh, yang kedua berarti hapus isinya.
     if (phone !== undefined) {
       if (phone !== null && !PHONE_PATTERN.test(String(phone))) {
-        throw new AppError('Nomor telepon tidak valid (8-20 digit)', 400);
+        throw new BadRequestError(
+          'Nomor telepon tidak valid (8-20 digit)',
+          ERROR_CODES.VALIDATION_FAILED
+        );
       }
 
       changes.phone = phone;
     }
 
     if (Object.keys(changes).length === 0) {
-      throw new AppError('Tidak ada data yang dikirim untuk diubah', 400);
+      throw new BadRequestError(
+        'Tidak ada data yang dikirim untuk diubah',
+        ERROR_CODES.NOTHING_TO_UPDATE
+      );
     }
 
     await this.users.update(user, changes);
@@ -134,7 +141,7 @@ class ProfileService {
     const user = await this.#findOrFail(userId);
 
     if (!user.avatarKey) {
-      throw new AppError('Anda belum memiliki avatar', 400);
+      throw new BadRequestError('Anda belum memiliki avatar', ERROR_CODES.AVATAR_ABSENT);
     }
 
     const previousKey = user.avatarKey;

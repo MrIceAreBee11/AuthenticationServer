@@ -23,6 +23,7 @@ const { ValidationError, UniqueConstraintError, ConnectionError } = require('seq
 
 const AppError = require('../utils/AppError');
 const { errorResponse } = require('../utils/response');
+const { ERROR_CODES } = require('../constants/errorCodes');
 
 class ErrorHandler {
   constructor({ exposeStack }) {
@@ -31,7 +32,7 @@ class ErrorHandler {
 
   handle = (err, req, res, next) => {
     if (err instanceof AppError) {
-      return errorResponse(res, err.statusCode, err.message);
+      return errorResponse(res, err.statusCode, err.message, { code: err.code });
     }
 
     if (err instanceof ConnectionError) {
@@ -39,35 +40,35 @@ class ErrorHandler {
 
       // 503 dan bukan 500: masalahnya bukan pada permintaannya, dan klien
       // boleh mencoba lagi nanti.
-      return errorResponse(
-        res,
-        503,
-        'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.'
-      );
+      return errorResponse(res, 503, 'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.', {
+        code: ERROR_CODES.DEPENDENCY_UNAVAILABLE,
+      });
     }
 
     if (err instanceof UniqueConstraintError) {
       // Nama kolomnya disebut, isinya tidak. "Email sudah digunakan" cukup
       // untuk pengguna; nilai yang bertabrakan justru membocorkan data lain.
       return errorResponse(res, 409, 'Data sudah digunakan oleh akun lain', {
-        fields: err.errors.map((item) => item.path),
+        code: ERROR_CODES.ALREADY_EXISTS,
+        details: { fields: err.errors.map((item) => item.path) },
       });
     }
 
     if (err instanceof ValidationError) {
       return errorResponse(res, 400, err.errors[0]?.message || 'Data tidak valid', {
-        errors: err.errors.map((item) => ({ field: item.path, message: item.message })),
+        code: ERROR_CODES.VALIDATION_FAILED,
+        details: {
+          errors: err.errors.map((item) => ({ field: item.path, message: item.message })),
+        },
       });
     }
 
     console.error('[UNEXPECTED ERROR]', err);
 
-    return errorResponse(
-      res,
-      500,
-      'Terjadi kesalahan pada server',
-      this.exposeStack ? { stack: err.stack } : null
-    );
+    return errorResponse(res, 500, 'Terjadi kesalahan pada server', {
+      code: ERROR_CODES.INTERNAL_ERROR,
+      details: this.exposeStack ? { stack: err.stack } : null,
+    });
   };
 }
 

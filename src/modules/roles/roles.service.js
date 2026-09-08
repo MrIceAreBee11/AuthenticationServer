@@ -14,7 +14,13 @@
  * bahwa yang baru saja terhapus itu adalah hak akses orang.
  */
 
-const AppError = require('../../utils/AppError');
+const {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  ConflictError,
+} = require('../../utils/AppError');
+const { ERROR_CODES } = require('../../constants/errorCodes');
 const { PROTECTED_ROLES } = require('../../constants/roles');
 
 // Daftarnya ada di constants/roles.js, dibaca juga oleh users.service.
@@ -34,13 +40,13 @@ class RolesService {
     const id = Number(roleId);
 
     if (!Number.isInteger(id) || id < 1) {
-      throw new AppError('ID role tidak valid', 400);
+      throw new BadRequestError('ID role tidak valid', ERROR_CODES.INVALID_ID);
     }
 
     const role = await this.roles.findById(id, { includePermissions: true });
 
     if (!role) {
-      throw new AppError('Role tidak ditemukan', 404);
+      throw new NotFoundError('Role tidak ditemukan', ERROR_CODES.NOT_FOUND);
     }
 
     return role;
@@ -48,9 +54,9 @@ class RolesService {
 
   #assertNotProtected(role, action) {
     if (PROTECTED_ROLE_NAMES.includes(role.name)) {
-      throw new AppError(
+      throw new ForbiddenError(
         `Role "${role.name}" dilindungi dan tidak dapat ${action}`,
-        403
+        ERROR_CODES.ROLE_PROTECTED
       );
     }
   }
@@ -65,7 +71,10 @@ class RolesService {
 
   async #resolvePermissions(permissionIds) {
     if (!Array.isArray(permissionIds)) {
-      throw new AppError('permissionIds harus berupa array', 400);
+      throw new BadRequestError(
+        'permissionIds harus berupa array',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     if (permissionIds.length === 0) {
@@ -75,7 +84,10 @@ class RolesService {
     const permissions = await this.permissions.findByIds(permissionIds);
 
     if (permissions.length !== new Set(permissionIds).size) {
-      throw new AppError('Sebagian permissionIds tidak ditemukan', 400);
+      throw new BadRequestError(
+        'Sebagian permissionIds tidak ditemukan',
+        ERROR_CODES.VALIDATION_FAILED
+      );
     }
 
     return permissions;
@@ -116,7 +128,7 @@ class RolesService {
 
   async create({ name, description, permissionIds }) {
     if (!name || String(name).trim().length === 0) {
-      throw new AppError('Nama role wajib diisi', 400);
+      throw new BadRequestError('Nama role wajib diisi', ERROR_CODES.VALIDATION_FAILED);
     }
 
     const permissions =
@@ -147,7 +159,10 @@ class RolesService {
       this.#assertNotProtected(role, 'diubah namanya');
 
       if (String(name).trim().length === 0) {
-        throw new AppError('Nama role tidak boleh kosong', 400);
+        throw new BadRequestError(
+          'Nama role tidak boleh kosong',
+          ERROR_CODES.VALIDATION_FAILED
+        );
       }
 
       changes.name = String(name).trim().toLowerCase();
@@ -158,7 +173,10 @@ class RolesService {
     }
 
     if (Object.keys(changes).length === 0) {
-      throw new AppError('Tidak ada data yang dikirim untuk diubah', 400);
+      throw new BadRequestError(
+        'Tidak ada data yang dikirim untuk diubah',
+        ERROR_CODES.NOTHING_TO_UPDATE
+      );
     }
 
     await this.roles.update(role, changes);
@@ -191,9 +209,9 @@ class RolesService {
     // Kalau dibiarkan, ON DELETE CASCADE akan mencabut wewenang sejumlah
     // pengguna sekaligus secara diam-diam.
     if (userCount > 0) {
-      throw new AppError(
+      throw new ConflictError(
         `Role ini masih dipakai oleh ${userCount} pengguna. Pindahkan mereka ke role lain terlebih dahulu.`,
-        409
+        ERROR_CODES.ROLE_IN_USE
       );
     }
 
