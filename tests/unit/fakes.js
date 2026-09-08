@@ -222,8 +222,16 @@ const fakeCache = ({ fail = () => false, initial = {} } = {}) => {
 
       return store.has(key) ? store.get(key) : null;
     }),
-    set: mock.fn(async (key, value) => {
+    // Opsi NX ditiru, bukan diabaikan. Repository idempotensi bergantung
+    // penuh padanya: kalau palsunya selalu menjawab 'OK', pengujian tabrakan
+    // kunci lulus tanpa membuktikan apa pun.
+    set: mock.fn(async (key, value, options = {}) => {
       guard('set', key);
+
+      if (options.NX && store.has(key)) {
+        return null;
+      }
+
       store.set(key, String(value));
 
       return 'OK';
@@ -337,9 +345,12 @@ const fakeAudit = ({ log = createLog() } = {}) => {
 
 /** Objek res palsu yang merekam status dan isi jawaban. */
 const fakeResponse = () => {
+  const listeners = new Map();
+
   const res = {
     statusCode: null,
     body: null,
+    headers: {},
     status(code) {
       res.statusCode = code;
 
@@ -347,6 +358,22 @@ const fakeResponse = () => {
     },
     json(payload) {
       res.body = payload;
+
+      return res;
+    },
+    setHeader(name, value) {
+      res.headers[String(name).toLowerCase()] = value;
+
+      return res;
+    },
+    on(event, listener) {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+
+      return res;
+    },
+    /** Memicu event yang biasanya dipancarkan Node ketika jawabannya terkirim. */
+    emit(event) {
+      (listeners.get(event) ?? []).forEach((listener) => listener());
 
       return res;
     },

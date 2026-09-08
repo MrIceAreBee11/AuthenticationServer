@@ -21,7 +21,7 @@ const {
   setUserRolesSchema,
 } = require('./users.schema');
 
-const buildUsersRoutes = ({ controllers, authenticate, authorize }) => {
+const buildUsersRoutes = ({ controllers, authenticate, authorize, idempotency }) => {
   const router = Router();
   const users = controllers.users;
   const requireToken = authenticate.handle;
@@ -31,10 +31,15 @@ const buildUsersRoutes = ({ controllers, authenticate, authorize }) => {
 
   router.get('/', requireToken, canRead, validate(listUsersQuerySchema, 'query'), users.list);
 
+  // Idempotensi hanya dipasang pada POST. PATCH dan PUT di sini sudah
+  // idempoten dengan sendirinya — mengirimnya dua kali menghasilkan keadaan
+  // akhir yang sama. Yang tidak, dan karena itu perlu dijaga, adalah
+  // pembuatan data baru.
   router.post(
     '/',
     requireToken,
     authorize.require(PERMISSIONS.USERS_CREATE),
+    idempotency.handle,
     validate(createUserSchema),
     users.create
   );

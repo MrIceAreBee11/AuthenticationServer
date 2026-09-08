@@ -39,6 +39,7 @@ const {
 } = require('./repositories/passwordResetToken.repository');
 const { HealthRepository } = require('./repositories/health.repository');
 const { AuditRepository } = require('./repositories/audit.repository');
+const { IdempotencyRepository } = require('./repositories/idempotency.repository');
 
 const { PermissionService } = require('./services/permission.service');
 const { AuditService } = require('./services/audit.service');
@@ -54,6 +55,7 @@ const { RateLimiterFactory } = require('./middlewares/rateLimiter');
 const { UploadMiddleware } = require('./middlewares/upload');
 const { ErrorHandler } = require('./middlewares/errorHandler');
 const { RequestLoggerMiddleware } = require('./middlewares/requestLogger');
+const { IdempotencyMiddleware } = require('./middlewares/idempotency');
 
 const { AuthController } = require('./modules/auth/auth.controller');
 const { ProfileController } = require('./modules/profile/profile.controller');
@@ -98,6 +100,7 @@ class Container {
     const denylist = new TokenDenylistRepository(this.cache);
     const resetTokens = new PasswordResetTokenRepository(this.cache);
     const auditRepository = new AuditRepository({ AuditLog: models.AuditLog });
+    const idempotency = new IdempotencyRepository(this.cache);
     const health = new HealthRepository({
       database: this.database,
       cache: this.cache,
@@ -203,6 +206,12 @@ class Container {
     });
 
     this.upload = new UploadMiddleware({ avatar: settings.upload.avatar });
+
+    this.idempotency = new IdempotencyMiddleware({
+      store: idempotency,
+      ttlSeconds: settings.idempotency.ttlSeconds,
+      logger: this.logger.child({ component: 'idempotency' }),
+    });
 
     this.errorHandler = new ErrorHandler({
       exposeStack: settings.app.isDevelopment,

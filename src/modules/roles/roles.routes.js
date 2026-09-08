@@ -20,7 +20,7 @@ const {
   setRolePermissionsSchema,
 } = require('./roles.schema');
 
-const buildRolesRoutes = ({ controllers, authenticate, authorize }) => {
+const buildRolesRoutes = ({ controllers, authenticate, authorize, idempotency }) => {
   const router = Router();
   const roles = controllers.roles;
   const requireToken = authenticate.handle;
@@ -31,10 +31,12 @@ const buildRolesRoutes = ({ controllers, authenticate, authorize }) => {
 
   router.get('/', requireToken, canRead, roles.list);
 
+  // Sama seperti di users: yang dijaga hanya pembuatan data baru.
   router.post(
     '/',
     requireToken,
     authorize.require(PERMISSIONS.ROLES_CREATE),
+    idempotency.handle,
     validate(createRoleSchema),
     roles.create
   );

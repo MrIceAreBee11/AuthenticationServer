@@ -107,6 +107,8 @@ const config = Object.freeze({
 
   permission: Object.freeze({ cacheTtlSeconds: raw.PERMISSION_CACHE_TTL_SECONDS }),
 
+  idempotency: Object.freeze({ ttlSeconds: raw.IDEMPOTENCY_TTL_SECONDS }),
+
   upload: Object.freeze({
     avatar: Object.freeze({
       maxSizeBytes: raw.AVATAR_MAX_SIZE_BYTES,

@@ -18,6 +18,7 @@ const CACHE_KEYS = Object.freeze({
   PERMISSION_VERSION: 'permissions:version',
   RATE_LIMIT_LOGIN: 'ratelimit:login:',
   RATE_LIMIT_PASSWORD_RESET: 'ratelimit:reset:',
+  IDEMPOTENCY: 'idem:',
 });
 
 const QUEUES = Object.freeze({

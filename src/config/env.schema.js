@@ -124,6 +124,13 @@ const envSchema = z
     // ---------- Cache izin ----------
     PERMISSION_CACHE_TTL_SECONDS: count(5 * SECONDS.MINUTE),
 
+    // ---------- Kunci idempotensi ----------
+    // Batas waktu berlakunya jaminan "permintaan ulang menerima jawaban yang
+    // sama". Terlalu pendek membuat percobaan ulang klien kelewat jendela dan
+    // kembali menerima 409; terlalu panjang menyimpan jawaban lama lebih lama
+    // dari yang berguna.
+    IDEMPOTENCY_TTL_SECONDS: count(24 * SECONDS.HOUR),
+
     // ---------- Unggahan & penyimpanan objek ----------
     AVATAR_MAX_SIZE_BYTES: count(2 * BYTES.MB),
     AVATAR_ALLOWED_MIME_TYPES: list('image/jpeg,image/png,image/webp'),
