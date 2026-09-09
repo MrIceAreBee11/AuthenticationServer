@@ -82,7 +82,7 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset`        | Membangun ulang database dari nol                          |
 | `npm run test:db:setup`   | Menyiapkan database pengujian (sekali saja)                |
-| `npm run test:unit`       | 385 pengujian unit — tanpa Docker, tanpa database          |
+| `npm run test:unit`       | 410 pengujian unit — tanpa Docker, tanpa database          |
 | `npm run test:e2e`        | 34 pengujian end-to-end — perlu seluruh layanan hidup      |
 | `npm run test:coverage`   | Pengujian unit beserta laporan cakupan                     |
 | `npm test`                | Unit lalu end-to-end                                       |
@@ -124,38 +124,53 @@ ia tampak seperti bug autentikasi, padahal murni akibat pengujian tetangga.
 Ambang cakupan dipasang di `npm run test:coverage` dan membuat perintahnya
 gagal bila turun di bawah 80 persen baris maupun cabang.
 
-| Berkas                                                                          | Baris | Cabang |
-| ------------------------------------------------------------------------------- | ----- | ------ |
-| `modules/auth/auth.service.js`                                                  | 100%  | 100%   |
-| `modules/auth/password.service.js`                                              | 100%  | 100%   |
-| `services/avatar.store.js`                                                      | 100%  | 100%   |
-| `modules/users/users.policy.js`                                                 | 100%  | 100%   |
-| `services/audit.service.js`                                                     | 100%  | 100%   |
-| `services/permission.service.js`                                                | 97,7% | 93,9%  |
-| `modules/roles/roles.service.js`                                                | 91,5% | 94,1%  |
-| `mappers/user.mapper.js`, `mappers/role.mapper.js`                              | 100%  | 100%   |
-| `middlewares/validate.js`                                                       | 100%  | 100%   |
-| `middlewares/idempotency.js`                                                    | 100%  | 95,8%  |
-| `middlewares/authenticate.js`                                                   | 100%  | 96,4%  |
-| `middlewares/authorize.js`                                                      | 100%  | 100%   |
-| `middlewares/errorHandler.js`                                                   | 100%  | 93,1%  |
-| `middlewares/requestLogger.js`                                                  | 100%  | 100%   |
-| `utils/logger.js`                                                               | 100%  | 96,9%  |
-| `utils/requestContext.js`                                                       | 89,3% | 100%   |
-| `utils/duration.js`, `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100%  | 100%   |
-| `config/env.schema.js`                                                          | 97,9% | 93,3%  |
-| `constants/*`                                                                   | 100%  | 100%   |
-| `repositories/idempotency.repository.js`                                        | 100%  | 100%   |
-| `repositories/passwordResetToken.repository.js`                                 | 100%  | 100%   |
-| `repositories/tokenDenylist.repository.js`                                      | 100%  | 100%   |
+`src/infrastructure/**` dikecualikan dari hitungan — satu direktori, satu
+alasan: isinya definisi model Sequelize dan pembungkus driver Redis, RabbitMQ,
+serta MinIO. Menguji unit sebuah pembungkus driver berarti menguji tiruan
+driver-nya, bukan perintah yang sungguhan dikirim. Bagian itu dibuktikan
+pengujian end-to-end.
 
-Keseluruhan **98,8 persen baris dan 97,4 persen cabang**.
+| Berkas                                                        | Baris | Cabang |
+| ------------------------------------------------------------- | ----- | ------ |
+| `modules/auth/auth.service.js`                                | 100%  | 100%   |
+| `modules/auth/password.service.js`                            | 100%  | 100%   |
+| `modules/users/users.policy.js`                               | 100%  | 100%   |
+| `modules/health/health.service.js`                            | 100%  | 100%   |
+| `modules/roles/roles.service.js`                              | 91,3% | 94,1%  |
+| `services/audit.service.js`, `services/avatar.store.js`       | 100%  | 100%   |
+| `services/permission.service.js`                              | 97,7% | 93,9%  |
+| `mappers/user.mapper.js`, `mappers/role.mapper.js`            | 100%  | 100%   |
+| `middlewares/validate.js`, `authorize.js`, `requestLogger.js` | 100%  | 100%   |
+| `middlewares/idempotency.js`                                  | 100%  | 95,8%  |
+| `middlewares/authenticate.js`                                 | 100%  | 96,4%  |
+| `middlewares/errorHandler.js`                                 | 100%  | 93,1%  |
+| `utils/logger.js`                                             | 100%  | 96,9%  |
+| `utils/requestContext.js`                                     | 89,3% | 100%   |
+| `utils/duration.js`, `token.js`, `response.js`, `AppError.js` | 100%  | 100%   |
+| `config/env.schema.js`                                        | 98,0% | 93,3%  |
+| `config/index.js`                                             | 91,8% | 50,0%  |
+| `constants/*`                                                 | 100%  | 100%   |
+| `repositories/idempotency.repository.js`                      | 100%  | 100%   |
+| `repositories/passwordResetToken.repository.js`               | 100%  | 100%   |
+| `repositories/tokenDenylist.repository.js`                    | 100%  | 100%   |
+| `repositories/user.repository.js`                             | 67,6% | 100%   |
+| `repositories/refreshToken.repository.js`                     | 66,3% | 100%   |
+| `repositories/role.repository.js`                             | 61,3% | 100%   |
+| `repositories/permission.repository.js`                       | 60,0% | 100%   |
+| `repositories/audit.repository.js`                            | 55,6% | 100%   |
 
-Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
-Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
-dijalankan — bagian itu dibuktikan oleh pengujian end-to-end. Karena
-dependensinya kini disuntikkan, berkas-berkas itu bahkan tidak ikut dimuat
-saat pengujian unit berjalan.
+Keseluruhan **95,0 persen baris dan 97,3 persen cabang**.
+
+Empat repository terakhir sengaja rendah dan **tidak** dikecualikan: isinya
+murni pemanggilan Sequelize, jadi menirukan Sequelize berarti menguji tiruan
+itu. Yang membuktikannya adalah pengujian end-to-end. Angkanya dibiarkan
+terlihat supaya keputusan itu tetap terbaca — bukan disembunyikan lewat daftar
+pengecualian yang panjang.
+
+Tiga berkas yang isinya logika dan **belum** punya pengujian unit sama sekali,
+jadi tidak muncul di tabel di atas: `modules/users/users.service.js`,
+`modules/profile/profile.service.js`, dan seluruh controller. Perilakunya
+dibuktikan pengujian end-to-end. Ini utang yang diketahui, bukan keputusan.
 
 ---
 
@@ -377,12 +392,8 @@ objek. Keduanya kini punya pengujian unitnya sendiri — sebelumnya tidak, karen
 mengujinya menuntut memalsukan tujuh benda yang tak satu pun berhubungan
 dengan pertanyaan yang sedang diuji.
 
-> Catatan cakupan: `users.service.js` dan `profile.service.js` **tidak muncul**
-> di tabel cakupan di atas, dan itu bukan kelalaian tabelnya — keduanya memang
-> belum punya pengujian unit sama sekali, jadi tidak ikut dimuat saat pengujian
-> unit berjalan dan tidak masuk hitungan. Perilakunya dibuktikan pengujian
-> end-to-end. Angka 98,8 persen itu, karena itu, berlaku atas berkas yang
-> diuji unit — bukan atas seluruh `src/`.
+> `users.service.js` sendiri masih belum punya pengujian unit; lihat catatan
+> di akhir bagian [Pengujian](#pengujian).
 
 **Log dan penelusuran.** Setiap permintaan mendapat `requestId` — dari header
 `x-request-id` klien bila ada, atau dibuat baru — yang dikembalikan lewat header

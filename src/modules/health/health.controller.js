@@ -27,24 +27,13 @@ class HealthController {
     });
 
   /**
-   * Readiness — memeriksa dependensi yang benar-benar dibutuhkan.
-   *
-   * Kedua pemeriksaan dijalankan sampai selesai, tidak berhenti di kegagalan
-   * pertama. Endpoint diagnostik harus melaporkan seluruh keadaan sekaligus;
-   * kalau berhenti di yang pertama, diagnosis menjadi berlapis.
+   * Readiness — penerjemahan murni. Yang MENILAI siap atau tidak adalah
+   * health.service; di sini hanya penilaian itu yang dipetakan ke status HTTP.
    */
   readiness = async (req, res) => {
-    const [databaseUp, cacheUp] = await Promise.all([
-      this.health.pingDatabase(),
-      this.health.pingCache(),
-    ]);
+    const { ready, checks } = await this.health.readiness();
 
-    const checks = {
-      database: databaseUp ? 'up' : 'down',
-      redis: cacheUp ? 'up' : 'down',
-    };
-
-    if (!databaseUp || !cacheUp) {
+    if (!ready) {
       return errorResponse(res, 503, 'Service belum siap', {
         code: ERROR_CODES.DEPENDENCY_UNAVAILABLE,
         details: checks,

@@ -42,6 +42,7 @@ const { IdempotencyRepository } = require('./repositories/idempotency.repository
 const { PermissionService } = require('./services/permission.service');
 const { AuditService } = require('./services/audit.service');
 const { AvatarStore } = require('./services/avatar.store');
+const { HealthService } = require('./modules/health/health.service');
 const { AuthService } = require('./modules/auth/auth.service');
 const { PasswordService } = require('./modules/auth/password.service');
 const { ProfileService } = require('./modules/profile/profile.service');
@@ -226,7 +227,10 @@ class Container {
       profile: new ProfileController({ profiles }),
       users: new UsersController({ users: usersService }),
       roles: new RolesController({ roles: rolesService }),
-      health: new HealthController({ health, environment: settings.app.env }),
+      health: new HealthController({
+        health: new HealthService({ health }),
+        environment: settings.app.env,
+      }),
     };
   }
 
