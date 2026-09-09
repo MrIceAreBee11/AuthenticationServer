@@ -82,7 +82,7 @@ npm run worker                                       # terminal 2 — pengirim e
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
 | `npm run db:reset`        | Membangun ulang database dari nol                          |
 | `npm run test:db:setup`   | Menyiapkan database pengujian (sekali saja)                |
-| `npm run test:unit`       | 354 pengujian unit — tanpa Docker, tanpa database          |
+| `npm run test:unit`       | 385 pengujian unit — tanpa Docker, tanpa database          |
 | `npm run test:e2e`        | 34 pengujian end-to-end — perlu seluruh layanan hidup      |
 | `npm run test:coverage`   | Pengujian unit beserta laporan cakupan                     |
 | `npm test`                | Unit lalu end-to-end                                       |
@@ -128,6 +128,8 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 | ------------------------------------------------------------------------------- | ----- | ------ |
 | `modules/auth/auth.service.js`                                                  | 100%  | 100%   |
 | `modules/auth/password.service.js`                                              | 100%  | 100%   |
+| `services/avatar.store.js`                                                      | 100%  | 100%   |
+| `modules/users/users.policy.js`                                                 | 100%  | 100%   |
 | `services/audit.service.js`                                                     | 100%  | 100%   |
 | `services/permission.service.js`                                                | 97,7% | 93,9%  |
 | `modules/roles/roles.service.js`                                                | 91,5% | 94,1%  |
@@ -147,7 +149,7 @@ gagal bila turun di bawah 80 persen baris maupun cabang.
 | `repositories/passwordResetToken.repository.js`                                 | 100%  | 100%   |
 | `repositories/tokenDenylist.repository.js`                                      | 100%  | 100%   |
 
-Keseluruhan **98,7 persen baris dan 97,3 persen cabang**.
+Keseluruhan **98,8 persen baris dan 97,4 persen cabang**.
 
 Repository yang isinya murni pemanggilan Sequelize sengaja tidak diuji unit.
 Menirukan Sequelize berarti menguji tiruan itu, bukan query yang sesungguhnya
@@ -342,6 +344,45 @@ new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() });
 | Tidak ada `console.*` | `grep -rnE "console.(log|error|warn)" src` | 4: tiga pemanggilan (lihat di bawah) + satu komentar |
 menambah `new` tanpa menambah kemampuan. Berkas route berupa pabrik yang
 menerima container; berkas `constants/` murni data.
+
+**Jumlah dependensi, dan batas yang sengaja dilampaui.** Pedoman internal
+menyebut maksimal lima dependensi per class: yang keenam biasanya berarti
+class-nya punya lebih dari satu alasan untuk berubah. `UsersService` punya
+**sembilan**, dan itu keputusan sadar, bukan kelalaian.
+
+Dua di antaranya bukan kolaborator melainkan nilai konfigurasi (`passwords`,
+`paging`) — keduanya tidak punya perilaku, jadi tidak menambah alasan untuk
+berubah. Tujuh sisanya memang dipakai:
+
+| Dependensi    | Dipakai oleh                |
+| ------------- | --------------------------- |
+| `users`       | seluruh method              |
+| `audit`       | seluruh method yang menulis |
+| `policy`      | update, setRoles, remove    |
+| `roles`       | create, setRoles            |
+| `permissions` | setRoles, remove            |
+| `database`    | create (transaksi)          |
+| `avatars`     | remove                      |
+
+Menurunkannya ke lima menuntut pemecahan **per operasi** — kueri, pembuatan,
+penetapan role, dan penghapusan menjadi empat service terpisah, masing-masing
+tetap dengan lima sampai enam dependensi. Angkanya membaik, keterbacaannya
+tidak: "di mana kode mengubah pengguna" berubah dari satu jawaban menjadi
+tebakan di antara empat berkas.
+
+Yang benar-benar dipecah adalah bagian yang punya alasan berubah yang berbeda:
+[users.policy.js](src/modules/users/users.policy.js) berubah karena keamanan,
+[avatar.store.js](src/services/avatar.store.js) berubah karena penyimpanan
+objek. Keduanya kini punya pengujian unitnya sendiri — sebelumnya tidak, karena
+mengujinya menuntut memalsukan tujuh benda yang tak satu pun berhubungan
+dengan pertanyaan yang sedang diuji.
+
+> Catatan cakupan: `users.service.js` dan `profile.service.js` **tidak muncul**
+> di tabel cakupan di atas, dan itu bukan kelalaian tabelnya — keduanya memang
+> belum punya pengujian unit sama sekali, jadi tidak ikut dimuat saat pengujian
+> unit berjalan dan tidak masuk hitungan. Perilakunya dibuktikan pengujian
+> end-to-end. Angka 98,8 persen itu, karena itu, berlaku atas berkas yang
+> diuji unit — bukan atas seluruh `src/`.
 
 **Log dan penelusuran.** Setiap permintaan mendapat `requestId` — dari header
 `x-request-id` klien bila ada, atau dibuat baru — yang dikembalikan lewat header
