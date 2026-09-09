@@ -44,23 +44,25 @@ const toFieldErrors = (issues) =>
  * @param {import('zod').ZodType} schema
  * @param {'body'|'query'|'params'} source bagian permintaan yang diperiksa
  */
-const validate = (schema, source = 'body') => (req, res, next) => {
-  const result = schema.safeParse(req[source] ?? {});
+const validate =
+  (schema, source = 'body') =>
+  (req, res, next) => {
+    const result = schema.safeParse(req[source] ?? {});
 
-  if (!result.success) {
-    // Seluruh field yang salah dilaporkan sekaligus, bukan yang pertama saja.
-    // Bentuk details-nya sama dengan yang dipakai ValidationError Sequelize,
-    // jadi antarmuka menanganinya dengan satu jalur.
-    throw new BadRequestError('Data yang dikirim tidak valid', ERROR_CODES.VALIDATION_FAILED, {
-      errors: toFieldErrors(result.error.issues),
-    });
-  }
+    if (!result.success) {
+      // Seluruh field yang salah dilaporkan sekaligus, bukan yang pertama saja.
+      // Bentuk details-nya sama dengan yang dipakai ValidationError Sequelize,
+      // jadi antarmuka menanganinya dengan satu jalur.
+      throw new BadRequestError('Data yang dikirim tidak valid', ERROR_CODES.VALIDATION_FAILED, {
+        errors: toFieldErrors(result.error.issues),
+      });
+    }
 
-  // Ditumpuk, bukan ditimpa: satu route bisa memeriksa params dan body
-  // sekaligus, dan yang kedua tidak boleh menghapus hasil yang pertama.
-  req.valid = { ...req.valid, [source]: result.data };
+    // Ditumpuk, bukan ditimpa: satu route bisa memeriksa params dan body
+    // sekaligus, dan yang kedua tidak boleh menghapus hasil yang pertama.
+    req.valid = { ...req.valid, [source]: result.data };
 
-  return next();
-};
+    return next();
+  };
 
 module.exports = { validate };

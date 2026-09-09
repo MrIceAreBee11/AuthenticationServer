@@ -46,8 +46,7 @@ class RateLimiterFactory {
       skipSuccessfulRequests,
       standardHeaders: 'draft-7',
       legacyHeaders: false,
-      handler: (req, res) =>
-        errorResponse(res, 429, message, { code: ERROR_CODES.RATE_LIMITED }),
+      handler: (req, res) => errorResponse(res, 429, message, { code: ERROR_CODES.RATE_LIMITED }),
     });
   }
 

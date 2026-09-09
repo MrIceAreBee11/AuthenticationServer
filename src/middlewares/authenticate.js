@@ -21,10 +21,7 @@
  *   4. Pengguna ada dan berstatus aktif    -> PostgreSQL
  *   5. Token terbit setelah ganti password -> perbandingan angka
  */
-const {
-  UnauthorizedError,
-  ServiceUnavailableError,
-} = require('../utils/AppError');
+const { UnauthorizedError, ServiceUnavailableError } = require('../utils/AppError');
 const { BEARER_PREFIX } = require('../constants/cacheKeys');
 const { ERROR_CODES } = require('../constants/errorCodes');
 

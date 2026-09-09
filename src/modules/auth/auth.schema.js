@@ -36,10 +36,7 @@ const password = z.string({ error: 'Password wajib diisi' }).min(1, 'Password wa
 
 /** Token acak 32 byte dalam base64url. Panjang pastinya tidak dipatok di sini
  *  supaya OPAQUE_TOKEN_BYTES boleh dinaikkan tanpa menyentuh skema. */
-const opaqueToken = z
-  .string({ error: 'Token wajib diisi' })
-  .trim()
-  .min(1, 'Token wajib diisi');
+const opaqueToken = z.string({ error: 'Token wajib diisi' }).trim().min(1, 'Token wajib diisi');
 
 const loginSchema = z.object({ email, password }).strict();
 
@@ -53,9 +50,7 @@ const logoutSchema = z.object({ refreshToken: opaqueToken.optional() }).strict()
 
 const forgotPasswordSchema = z.object({ email }).strict();
 
-const resetPasswordSchema = z
-  .object({ token: opaqueToken, newPassword: password })
-  .strict();
+const resetPasswordSchema = z.object({ token: opaqueToken, newPassword: password }).strict();
 
 module.exports = {
   loginSchema,

@@ -4,9 +4,7 @@ const assert = require('node:assert/strict');
 const {
   PasswordResetTokenRepository,
 } = require('../../src/repositories/passwordResetToken.repository');
-const {
-  TokenDenylistRepository,
-} = require('../../src/repositories/tokenDenylist.repository');
+const { TokenDenylistRepository } = require('../../src/repositories/tokenDenylist.repository');
 const { fakeCache } = require('./fakes');
 
 test('PasswordResetTokenRepository', async (t) => {

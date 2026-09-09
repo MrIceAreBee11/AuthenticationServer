@@ -28,7 +28,9 @@ class RequestLoggerMiddleware {
    * baris palsu ke dalam log — atau mengirim satu megabyte teks.
    */
   #resolveId(headerValue) {
-    const candidate = String(headerValue ?? '').trim().slice(0, MAX_ID_LENGTH);
+    const candidate = String(headerValue ?? '')
+      .trim()
+      .slice(0, MAX_ID_LENGTH);
 
     return /^[\w.:-]+$/.test(candidate) ? candidate : crypto.randomUUID();
   }

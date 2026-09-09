@@ -66,7 +66,9 @@ test.before(async () => {
 
 test.after(async () => {
   if (temporaryRoleId) {
-    await call(`/roles/${temporaryRoleId}`, { method: 'DELETE', token: accessToken }).catch(() => {});
+    await call(`/roles/${temporaryRoleId}`, { method: 'DELETE', token: accessToken }).catch(
+      () => {}
+    );
   }
 
   await new Promise((resolve) => server.close(resolve));
@@ -103,7 +105,9 @@ test('role superadmin tidak dapat dihapus maupun diganti nama', async () => {
   assert.equal(removed.status, 403);
 
   const renamed = await call(`/roles/${superadmin.id}`, {
-    method: 'PATCH', token: accessToken, body: { name: 'bos-besar' },
+    method: 'PATCH',
+    token: accessToken,
+    body: { name: 'bos-besar' },
   });
   assert.equal(renamed.status, 403);
 });
@@ -115,8 +119,13 @@ test('role dapat dibuat, izinnya diubah, lalu dihapus', async () => {
     .map((permission) => permission.id);
 
   const created = await call('/roles', {
-    method: 'POST', token: accessToken,
-    body: { name: 'uji-otomatis', description: 'Dibuat oleh pengujian', permissionIds: readOnlyIds },
+    method: 'POST',
+    token: accessToken,
+    body: {
+      name: 'uji-otomatis',
+      description: 'Dibuat oleh pengujian',
+      permissionIds: readOnlyIds,
+    },
   });
 
   assert.equal(created.status, 201);
@@ -125,7 +134,9 @@ test('role dapat dibuat, izinnya diubah, lalu dihapus', async () => {
   temporaryRoleId = created.body.data.role.id;
 
   const narrowed = await call(`/roles/${temporaryRoleId}/permissions`, {
-    method: 'PUT', token: accessToken, body: { permissionIds: [readOnlyIds[0]] },
+    method: 'PUT',
+    token: accessToken,
+    body: { permissionIds: [readOnlyIds[0]] },
   });
 
   assert.equal(narrowed.status, 200);
@@ -139,7 +150,8 @@ test('role dapat dibuat, izinnya diubah, lalu dihapus', async () => {
 
 test('permissionIds yang tidak ada ditolak dan role tidak terbentuk', async () => {
   const { status, body } = await call('/roles', {
-    method: 'POST', token: accessToken,
+    method: 'POST',
+    token: accessToken,
     body: { name: 'role-gagal', permissionIds: [999999] },
   });
 
@@ -148,7 +160,10 @@ test('permissionIds yang tidak ada ditolak dan role tidak terbentuk', async () =
 
   const roles = await call('/roles', { token: accessToken });
 
-  assert.equal(roles.body.data.roles.some((role) => role.name === 'role-gagal'), false);
+  assert.equal(
+    roles.body.data.roles.some((role) => role.name === 'role-gagal'),
+    false
+  );
 });
 
 test('role yang masih dipakai pengguna tidak dapat dihapus', async () => {
@@ -159,7 +174,10 @@ test('role yang masih dipakai pengguna tidak dapat dihapus', async () => {
     return; // tidak ada role non-protected yang sedang dipakai, lewati
   }
 
-  const { status, body } = await call(`/roles/${inUse.id}`, { method: 'DELETE', token: accessToken });
+  const { status, body } = await call(`/roles/${inUse.id}`, {
+    method: 'DELETE',
+    token: accessToken,
+  });
 
   assert.equal(status, 409);
   assert.match(body.message, /masih dipakai/i);

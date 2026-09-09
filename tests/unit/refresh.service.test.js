@@ -60,18 +60,21 @@ test('AuthService.login — penerbitan refresh token', async (t) => {
     assert.equal(refreshTokens.create.mock.callCount(), 1);
   });
 
-  await t.test('yang diserahkan ke penyimpanan adalah token asli, hash urusan repository', async () => {
-    const user = fakeUser();
-    const { service, refreshTokens } = buildService({ user });
+  await t.test(
+    'yang diserahkan ke penyimpanan adalah token asli, hash urusan repository',
+    async () => {
+      const user = fakeUser();
+      const { service, refreshTokens } = buildService({ user });
 
-    const hasil = await service.login({ email: user.email, password: 'benar' });
-    const [data] = refreshTokens.create.mock.calls[0].arguments;
+      const hasil = await service.login({ email: user.email, password: 'benar' });
+      const [data] = refreshTokens.create.mock.calls[0].arguments;
 
-    assert.equal(data.plainToken, hasil.refreshToken);
-    assert.equal(data.userId, user.id);
-    assert.ok(data.familyId, 'setiap login memulai rangkaian sesi baru');
-    assert.ok(data.expiresAt instanceof Date);
-  });
+      assert.equal(data.plainToken, hasil.refreshToken);
+      assert.equal(data.userId, user.id);
+      assert.ok(data.familyId, 'setiap login memulai rangkaian sesi baru');
+      assert.ok(data.expiresAt instanceof Date);
+    }
+  );
 
   await t.test('masa berlaku diambil dari REFRESH_TOKEN_EXPIRES_IN', async () => {
     const user = fakeUser();
@@ -379,36 +382,39 @@ test('PasswordService — reset password mencabut seluruh sesi', async (t) => {
     assert.equal(refreshTokens.revokeAllForUser.mock.calls[0].arguments[0], user.id);
   });
 
-  await t.test('pencabutan terjadi setelah password diubah, sebelum token reset dibuang', async () => {
-    const user = fakeUser();
-    const log = createLog();
-    const users = fakeUserRepository({ user, log });
-    const resetTokens = fakeResetTokenRepository({ userId: user.id, log });
-    const refreshTokens = fakeRefreshTokenRepository({ log });
+  await t.test(
+    'pencabutan terjadi setelah password diubah, sebelum token reset dibuang',
+    async () => {
+      const user = fakeUser();
+      const log = createLog();
+      const users = fakeUserRepository({ user, log });
+      const resetTokens = fakeResetTokenRepository({ userId: user.id, log });
+      const refreshTokens = fakeRefreshTokenRepository({ log });
 
-    const service = new PasswordService({
-      users,
-      resetTokens,
-      refreshTokens,
-      tokens: testTokenService(),
-      policy: testPasswordPolicy(),
-      logger: fakeLogger(),
-      audit: fakeAudit({ log }),
-    });
+      const service = new PasswordService({
+        users,
+        resetTokens,
+        refreshTokens,
+        tokens: testTokenService(),
+        policy: testPasswordPolicy(),
+        logger: fakeLogger(),
+        audit: fakeAudit({ log }),
+      });
 
-    await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
+      await service.resetPassword({ token: 'token-sah', newPassword: 'PasswordBaru123' });
 
-    // Jejak audit ditulis PALING AKHIR, setelah mutasinya terbukti berhasil.
-    // Menulisnya lebih dulu berarti mencatat perubahan yang mungkin gagal.
-    assert.deepEqual(log, [
-      'resetTokens.findUserId',
-      'users.findById',
-      'users.update',
-      'refreshTokens.revokeAllForUser',
-      'resetTokens.remove',
-      'audit.record',
-    ]);
-  });
+      // Jejak audit ditulis PALING AKHIR, setelah mutasinya terbukti berhasil.
+      // Menulisnya lebih dulu berarti mencatat perubahan yang mungkin gagal.
+      assert.deepEqual(log, [
+        'resetTokens.findUserId',
+        'users.findById',
+        'users.update',
+        'refreshTokens.revokeAllForUser',
+        'resetTokens.remove',
+        'audit.record',
+      ]);
+    }
+  );
 
   await t.test('reset yang gagal tidak mencabut sesi siapa pun', async () => {
     const log = createLog();

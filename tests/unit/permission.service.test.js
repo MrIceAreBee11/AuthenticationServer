@@ -144,24 +144,27 @@ test('PermissionService.getUserPermissions', async (t) => {
 });
 
 test('PermissionService.bumpVersion', async (t) => {
-  await t.test('menaikkan versi membuat cache lama tidak terjangkau, bukan menghapusnya', async () => {
-    const { service, cache } = buildService({
-      user: fakeUserWithPermissions([['users.read']]),
-    });
+  await t.test(
+    'menaikkan versi membuat cache lama tidak terjangkau, bukan menghapusnya',
+    async () => {
+      const { service, cache } = buildService({
+        user: fakeUserWithPermissions([['users.read']]),
+      });
 
-    await service.getUserPermissions('u1');
-    await service.bumpVersion();
-    await service.getUserPermissions('u1');
+      await service.getUserPermissions('u1');
+      await service.bumpVersion();
+      await service.getUserPermissions('u1');
 
-    const kunci = kunciPengguna(cache);
+      const kunci = kunciPengguna(cache);
 
-    // Kunci lama sengaja ditinggalkan. Menghapus cache satu per satu berarti
-    // menyapu seluruh keyspace Redis; membiarkannya hilang lewat TTL jauh
-    // lebih murah, dan selama versinya sudah naik ia tak akan terbaca lagi.
-    assert.equal(kunci.length, 2);
-    assert.ok(kunci.includes(`${AWALAN_KUNCI}v1:u1`));
-    assert.ok(kunci.includes(`${AWALAN_KUNCI}v2:u1`));
-  });
+      // Kunci lama sengaja ditinggalkan. Menghapus cache satu per satu berarti
+      // menyapu seluruh keyspace Redis; membiarkannya hilang lewat TTL jauh
+      // lebih murah, dan selama versinya sudah naik ia tak akan terbaca lagi.
+      assert.equal(kunci.length, 2);
+      assert.ok(kunci.includes(`${AWALAN_KUNCI}v1:u1`));
+      assert.ok(kunci.includes(`${AWALAN_KUNCI}v2:u1`));
+    }
+  );
 
   await t.test('Redis mati membuatnya mengembalikan null, bukan melempar', async () => {
     const cache = fakeCache({ fail: (operasi) => operasi === 'incr' });
@@ -204,19 +207,22 @@ test('PermissionService.verifyCatalog', async (t) => {
     });
   });
 
-  await t.test('izin yang dipakai route tapi tidak ada di database menghentikan aplikasi', async () => {
-    // Inilah pengaman yang menutup kegagalan senyap: tanpa baris di database,
-    // endpoint tersebut menjawab 403 untuk semua orang — termasuk superadmin,
-    // karena izin superadmin berasal dari baris database, bukan dari kode.
-    const { service } = buildService({ names: ['users.read'] });
+  await t.test(
+    'izin yang dipakai route tapi tidak ada di database menghentikan aplikasi',
+    async () => {
+      // Inilah pengaman yang menutup kegagalan senyap: tanpa baris di database,
+      // endpoint tersebut menjawab 403 untuk semua orang — termasuk superadmin,
+      // karena izin superadmin berasal dari baris database, bukan dari kode.
+      const { service } = buildService({ names: ['users.read'] });
 
-    const error = await captureError(() =>
-      service.verifyCatalog(['users.read', 'users.hapus-semua', 'roles.rahasia'])
-    );
+      const error = await captureError(() =>
+        service.verifyCatalog(['users.read', 'users.hapus-semua', 'roles.rahasia'])
+      );
 
-    assert.match(error.message, /users\.hapus-semua/);
-    assert.match(error.message, /roles\.rahasia/);
-    assert.doesNotMatch(error.message, /users\.read/, 'yang sudah ada tidak perlu disebut');
-    assert.match(error.message, /db:migrate/, 'pesan harus menyebutkan cara memperbaikinya');
-  });
+      assert.match(error.message, /users\.hapus-semua/);
+      assert.match(error.message, /roles\.rahasia/);
+      assert.doesNotMatch(error.message, /users\.read/, 'yang sudah ada tidak perlu disebut');
+      assert.match(error.message, /db:migrate/, 'pesan harus menyebutkan cara memperbaikinya');
+    }
+  );
 });

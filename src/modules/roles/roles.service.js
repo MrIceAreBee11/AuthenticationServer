@@ -73,10 +73,7 @@ class RolesService {
 
   async #resolvePermissions(permissionIds) {
     if (!Array.isArray(permissionIds)) {
-      throw new BadRequestError(
-        'permissionIds harus berupa array',
-        ERROR_CODES.VALIDATION_FAILED
-      );
+      throw new BadRequestError('permissionIds harus berupa array', ERROR_CODES.VALIDATION_FAILED);
     }
 
     if (permissionIds.length === 0) {
@@ -168,10 +165,7 @@ class RolesService {
       this.#assertNotProtected(role, 'diubah namanya');
 
       if (String(name).trim().length === 0) {
-        throw new BadRequestError(
-          'Nama role tidak boleh kosong',
-          ERROR_CODES.VALIDATION_FAILED
-        );
+        throw new BadRequestError('Nama role tidak boleh kosong', ERROR_CODES.VALIDATION_FAILED);
       }
 
       changes.name = String(name).trim().toLowerCase();

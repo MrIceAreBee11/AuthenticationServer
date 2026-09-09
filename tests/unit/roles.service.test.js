@@ -74,7 +74,10 @@ test('RolesService — pencarian role', async (t) => {
   });
 
   await t.test('role tanpa pengguna dilaporkan nol, bukan undefined', async () => {
-    const { service } = buildService({ role: fakeRole({ id: 5, name: 'auditor' }), userCounts: {} });
+    const { service } = buildService({
+      role: fakeRole({ id: 5, name: 'auditor' }),
+      userCounts: {},
+    });
 
     const hasil = await service.getById(5);
 
@@ -203,20 +206,23 @@ test('RolesService.setPermissions', async (t) => {
     assert.equal(rolesRepo.setPermissions.mock.callCount(), 0);
   });
 
-  await t.test('perubahan izin role menaikkan versi cache, bukan menghapus per pengguna', async () => {
-    // Mengubah izin sebuah role memengaruhi SEMUA pemakainya sekaligus, dan
-    // penghapusan cache per pengguna tidak menjangkau itu.
-    const { service, rolesRepo, permissionCache } = buildService({
-      role: fakeRole({ id: 2 }),
-      userCounts: { 2: 12 },
-    });
+  await t.test(
+    'perubahan izin role menaikkan versi cache, bukan menghapus per pengguna',
+    async () => {
+      // Mengubah izin sebuah role memengaruhi SEMUA pemakainya sekaligus, dan
+      // penghapusan cache per pengguna tidak menjangkau itu.
+      const { service, rolesRepo, permissionCache } = buildService({
+        role: fakeRole({ id: 2 }),
+        userCounts: { 2: 12 },
+      });
 
-    await service.setPermissions(2, [1, 2, 3]);
+      await service.setPermissions(2, [1, 2, 3]);
 
-    assert.equal(rolesRepo.setPermissions.mock.callCount(), 1);
-    assert.equal(permissionCache.bumpVersion.mock.callCount(), 1);
-    assert.equal(permissionCache.invalidateUser.mock.callCount(), 0);
-  });
+      assert.equal(rolesRepo.setPermissions.mock.callCount(), 1);
+      assert.equal(permissionCache.bumpVersion.mock.callCount(), 1);
+      assert.equal(permissionCache.invalidateUser.mock.callCount(), 0);
+    }
+  );
 
   await t.test('daftar izin kosong mengosongkan izin role', async () => {
     const { service, rolesRepo, permissionsRepo } = buildService({ role: fakeRole({ id: 2 }) });
@@ -271,11 +277,7 @@ test('RolesService.listPermissions', async (t) => {
   await t.test('izin dikelompokkan berdasarkan sumber dayanya', async () => {
     const buat = (id, name) => ({ id, name, toJSON: () => ({ id, name }) });
     const { service } = buildService({
-      permissions: [
-        buat(1, 'users.read'),
-        buat(2, 'users.create'),
-        buat(3, 'roles.read'),
-      ],
+      permissions: [buat(1, 'users.read'), buat(2, 'users.create'), buat(3, 'roles.read')],
     });
 
     const hasil = await service.listPermissions();

@@ -170,7 +170,10 @@ test('Skema environment — seluruh masalah dilaporkan sekaligus', async (t) => 
       MINIO_USE_SSL: 'mungkin',
     });
 
-    assert.ok(issues.length >= 5, `hanya ${issues.length} masalah dilaporkan: ${issues.join(' | ')}`);
+    assert.ok(
+      issues.length >= 5,
+      `hanya ${issues.length} masalah dilaporkan: ${issues.join(' | ')}`
+    );
   });
 });
 
@@ -179,10 +182,7 @@ test('Konsistensi berkas konfigurasi', async (t) => {
     // Pengujian ini yang membuat .env.example tidak mungkin tertinggal.
     // Tanpanya, developer baru meng-clone repositori dan aplikasinya menolak
     // menyala karena variabel yang tidak pernah didokumentasikan.
-    const schemaSource = fs.readFileSync(
-      path.join(ROOT, 'src', 'config', 'env.schema.js'),
-      'utf8'
-    );
+    const schemaSource = fs.readFileSync(path.join(ROOT, 'src', 'config', 'env.schema.js'), 'utf8');
     const exampleSource = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
 
     const inSchema = [...schemaSource.matchAll(/^ {4}([A-Z][A-Z0-9_]+):/gm)].map((m) => m[1]);

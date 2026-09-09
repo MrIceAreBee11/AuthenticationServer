@@ -34,9 +34,7 @@ const { RoleRepository } = require('./repositories/role.repository');
 const { PermissionRepository } = require('./repositories/permission.repository');
 const { RefreshTokenRepository } = require('./repositories/refreshToken.repository');
 const { TokenDenylistRepository } = require('./repositories/tokenDenylist.repository');
-const {
-  PasswordResetTokenRepository,
-} = require('./repositories/passwordResetToken.repository');
+const { PasswordResetTokenRepository } = require('./repositories/passwordResetToken.repository');
 const { HealthRepository } = require('./repositories/health.repository');
 const { AuditRepository } = require('./repositories/audit.repository');
 const { IdempotencyRepository } = require('./repositories/idempotency.repository');
@@ -80,14 +78,8 @@ class Container {
     // "tampilkan semua error redis" jadi satu filter, bukan pencarian teks.
     this.database = new Database(settings.app.env);
     this.cache = new CacheClient(settings.cache, this.logger.child({ component: 'redis' }));
-    this.queue = new MessageQueue(
-      settings.queue.url,
-      this.logger.child({ component: 'rabbitmq' })
-    );
-    this.storage = new ObjectStorage(
-      settings.storage,
-      this.logger.child({ component: 'minio' })
-    );
+    this.queue = new MessageQueue(settings.queue.url, this.logger.child({ component: 'rabbitmq' }));
+    this.storage = new ObjectStorage(settings.storage, this.logger.child({ component: 'minio' }));
     this.tokens = new TokenService(settings.token);
 
     const { models } = this.database;
@@ -241,7 +233,7 @@ class Container {
     await this.cache.connect();
 
     // Sambungkan antrean di awal saat aplikasi mulai berjalan.
-    // Kalau ditunda sampai ada request masuk, catatan error antrean bakal 
+    // Kalau ditunda sampai ada request masuk, catatan error antrean bakal
     // ketempelan tanda pengenal request tersebut dan bikin isi log keliru/membingungkan.
     // Jika gagal, aplikasi tetap jalan karena antrean cuma dipakai untuk kirim email di latar belakang.
     await this.queue

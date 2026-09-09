@@ -12,19 +12,12 @@
  * di middleware, karena hanya di sini identitas targetnya sudah diketahui.
  */
 
-const {
-  BadRequestError,
-  ForbiddenError,
-  NotFoundError,
-} = require('../../utils/AppError');
+const { BadRequestError, ForbiddenError, NotFoundError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
 const { ROLES } = require('../../constants/roles');
 const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
-
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class UsersService {
   constructor({ users, roles, permissions, storage, policy, paging, database, logger, audit }) {
@@ -122,10 +115,7 @@ class UsersService {
     const roles = await this.roles.findByIds(roleIds);
 
     if (roles.length !== new Set(roleIds).size) {
-      throw new BadRequestError(
-        'Sebagian roleIds tidak ditemukan',
-        ERROR_CODES.VALIDATION_FAILED
-      );
+      throw new BadRequestError('Sebagian roleIds tidak ditemukan', ERROR_CODES.VALIDATION_FAILED);
     }
 
     return roles;

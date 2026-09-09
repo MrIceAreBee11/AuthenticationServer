@@ -18,7 +18,6 @@
 const crypto = require('node:crypto');
 const { Op } = require('sequelize');
 
-
 /**
  * Satu-satunya tempat yang menyusun query untuk tabel refresh_tokens, dan
  * satu-satunya tempat yang tahu bahwa token disimpan dalam bentuk hash.

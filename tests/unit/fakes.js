@@ -110,9 +110,7 @@ const fakeUserRepository = ({ user = null, page = null, log = createLog() } = {}
   findWithRolePermissions: logged(log, 'users.findWithRolePermissions', async () => user),
   paginate: logged(log, 'users.paginate', async () => page ?? { rows: [], count: 0 }),
   create: logged(log, 'users.create', async (data) => fakeUser(data)),
-  update: logged(log, 'users.update', async (target, changes) =>
-    Object.assign(target, changes)
-  ),
+  update: logged(log, 'users.update', async (target, changes) => Object.assign(target, changes)),
   destroy: logged(log, 'users.destroy', async () => undefined),
   setRoles: logged(log, 'users.setRoles', async () => undefined),
 });
@@ -165,7 +163,11 @@ const fakeRoleRepository = ({
   log,
   findById: logged(log, 'roles.findById', async () => role),
   findAll: logged(log, 'roles.findAll', async () => roles),
-  findByIds: logged(log, 'roles.findByIds', async (ids) => byIds ?? ids.map((id) => fakeRole({ id }))),
+  findByIds: logged(
+    log,
+    'roles.findByIds',
+    async (ids) => byIds ?? ids.map((id) => fakeRole({ id }))
+  ),
   create: logged(log, 'roles.create', async (data) => fakeRole(data)),
   update: logged(log, 'roles.update', async (target, changes) => Object.assign(target, changes)),
   destroy: logged(log, 'roles.destroy', async () => undefined),
@@ -186,8 +188,10 @@ const fakePermissionRepository = ({
     'permissions.findAllNames',
     async () => names ?? permissions.map((item) => item.name)
   ),
-  findByIds: logged(log, 'permissions.findByIds', async (ids) =>
-    byIds ?? ids.map((id) => ({ id, name: `izin-${id}`, toJSON: () => ({ id }) }))
+  findByIds: logged(
+    log,
+    'permissions.findByIds',
+    async (ids) => byIds ?? ids.map((id) => ({ id, name: `izin-${id}`, toJSON: () => ({ id }) }))
   ),
 });
 
@@ -285,9 +289,7 @@ const testPasswordPolicy = (overrides = {}) => ({
 /** Pembungkus transaksi palsu: jalankan callback tanpa transaksi sungguhan. */
 const fakeDatabase = ({ log = createLog() } = {}) => ({
   log,
-  runInTransaction: logged(log, 'database.runInTransaction', async (callback) =>
-    callback(null)
-  ),
+  runInTransaction: logged(log, 'database.runInTransaction', async (callback) => callback(null)),
   query: logged(log, 'database.query', async () => []),
 });
 

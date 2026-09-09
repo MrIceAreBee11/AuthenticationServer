@@ -61,9 +61,7 @@ test('AuthenticateMiddleware — header', async (t) => {
     const { middleware } = buildMiddleware();
 
     for (const header of ['Basic abc', 'bearer abc', 'abc', '']) {
-      const error = await captureError(() =>
-        middleware.handle(fakeRequest(header), {}, () => {})
-      );
+      const error = await captureError(() => middleware.handle(fakeRequest(header), {}, () => {}));
 
       assert.equal(error.statusCode, 401, `header "${header}" seharusnya ditolak`);
     }
@@ -115,7 +113,11 @@ test('AuthenticateMiddleware — token', async (t) => {
     );
 
     assert.equal(error.statusCode, 503);
-    assert.equal(users.findById.mock.callCount(), 0, 'tidak boleh lanjut ke pemeriksaan berikutnya');
+    assert.equal(
+      users.findById.mock.callCount(),
+      0,
+      'tidak boleh lanjut ke pemeriksaan berikutnya'
+    );
 
     // Kegagalannya WAJIB tercatat. 503 tanpa jejak di log berarti tidak ada
     // yang tahu Redis sedang bermasalah.

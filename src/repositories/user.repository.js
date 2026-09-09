@@ -62,7 +62,10 @@ class UserRepository {
     return this.#scoped(includePassword).findOne({ where: { email } });
   }
 
-  async findById(userId, { includePassword = false, includeRoles = false, detailedRoles = false } = {}) {
+  async findById(
+    userId,
+    { includePassword = false, includeRoles = false, detailedRoles = false } = {}
+  ) {
     return this.#scoped(includePassword).findByPk(userId, {
       include: includeRoles ? [this.#roleInclude(detailedRoles)] : undefined,
     });

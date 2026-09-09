@@ -15,14 +15,7 @@ class PasswordService {
    * Disuntikkan, bukan dibaca dari environment di dalam sini, supaya pengujian
    * dapat menyerahkan kebijakan lain tanpa menyentuh process.env global.
    */
-  constructor({
-    users,
-    resetTokens,
-    refreshTokens,
-    tokens,
-    policy,
-    audit,
-  }) {
+  constructor({ users, resetTokens, refreshTokens, tokens, policy, audit }) {
     this.audit = audit;
     this.users = users;
     this.resetTokens = resetTokens;

@@ -31,8 +31,7 @@ const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions
  * hanya cadangan untuk pengujian, dan ada unit test yang menjaga keduanya
  * tetap sepadan.
  */
-const DUMMY_PASSWORD_HASH =
-  '$2b$12$y8mnV4olFFifO8MOrq4AjOFM/mRzYnSAHz.CDpc9FhAoOx4cfCpAK';
+const DUMMY_PASSWORD_HASH = '$2b$12$y8mnV4olFFifO8MOrq4AjOFM/mRzYnSAHz.CDpc9FhAoOx4cfCpAK';
 
 /**
  * Pesan seragam untuk seluruh kegagalan refresh: token tidak dikenal, token
@@ -112,10 +111,7 @@ class AuthService {
 
     // Setiap login memulai rangkaian sesi baru dengan penandanya sendiri.
     // Dengan begitu logout di satu perangkat tidak menyentuh perangkat lain.
-    const refreshToken = await this.#issueRefreshToken(
-      user.id,
-      crypto.randomUUID()
-    );
+    const refreshToken = await this.#issueRefreshToken(user.id, crypto.randomUUID());
 
     await this.refreshTokens.deleteExpired(user.id);
 
@@ -137,10 +133,7 @@ class AuthService {
     const stored = await this.refreshTokens.findByToken(refreshToken);
 
     if (!stored) {
-      throw new UnauthorizedError(
-        PESAN_REFRESH_TIDAK_VALID,
-        ERROR_CODES.REFRESH_TOKEN_INVALID
-      );
+      throw new UnauthorizedError(PESAN_REFRESH_TIDAK_VALID, ERROR_CODES.REFRESH_TOKEN_INVALID);
     }
 
     if (stored.revokedAt) {
@@ -170,10 +163,7 @@ class AuthService {
         reason: 'refresh token yang sudah dirotasi dipakai kembali',
       });
 
-      throw new UnauthorizedError(
-        PESAN_REFRESH_TIDAK_VALID,
-        ERROR_CODES.REFRESH_TOKEN_INVALID
-      );
+      throw new UnauthorizedError(PESAN_REFRESH_TIDAK_VALID, ERROR_CODES.REFRESH_TOKEN_INVALID);
     }
 
     if (stored.expiresAt.getTime() <= Date.now()) {
@@ -188,10 +178,7 @@ class AuthService {
     if (!user || !user.isActive) {
       await this.refreshTokens.revokeFamily(stored.familyId);
 
-      throw new UnauthorizedError(
-        PESAN_REFRESH_TIDAK_VALID,
-        ERROR_CODES.REFRESH_TOKEN_INVALID
-      );
+      throw new UnauthorizedError(PESAN_REFRESH_TIDAK_VALID, ERROR_CODES.REFRESH_TOKEN_INVALID);
     }
 
     // Urutannya disengaja: yang lama dicabut lebih dulu, penggantinya dibuat

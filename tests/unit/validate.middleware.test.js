@@ -9,7 +9,11 @@ const { ERROR_CODES } = require('../../src/constants/errorCodes');
 
 const skema = z
   .object({
-    email: z.string({ error: 'Email wajib diisi' }).trim().toLowerCase().email('Format email tidak valid'),
+    email: z
+      .string({ error: 'Email wajib diisi' })
+      .trim()
+      .toLowerCase()
+      .email('Format email tidak valid'),
     umur: z.coerce.number().int().positive().optional(),
   })
   .strict();

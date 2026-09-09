@@ -60,9 +60,7 @@ module.exports = {
     const [permissionRows] = await queryInterface.sequelize.query(
       'SELECT id, name FROM permissions'
     );
-    const [roleRows] = await queryInterface.sequelize.query(
-      'SELECT id, name FROM roles'
-    );
+    const [roleRows] = await queryInterface.sequelize.query('SELECT id, name FROM roles');
 
     if (permissionRows.length === 0) {
       throw new Error(
@@ -70,9 +68,7 @@ module.exports = {
       );
     }
 
-    const permissionIdByName = Object.fromEntries(
-      permissionRows.map((row) => [row.name, row.id])
-    );
+    const permissionIdByName = Object.fromEntries(permissionRows.map((row) => [row.name, row.id]));
     const roleIdByName = Object.fromEntries(roleRows.map((row) => [row.name, row.id]));
 
     // superadmin mendapat SELURUH izin yang ada di database, bukan daftar yang
@@ -83,19 +79,18 @@ module.exports = {
       ...ROLE_PERMISSIONS,
     };
 
-    const rolePermissionRows = Object.entries(assignments).flatMap(
-      ([roleName, permissionNames]) =>
-        permissionNames.map((permissionName) => {
-          const permissionId = permissionIdByName[permissionName];
+    const rolePermissionRows = Object.entries(assignments).flatMap(([roleName, permissionNames]) =>
+      permissionNames.map((permissionName) => {
+        const permissionId = permissionIdByName[permissionName];
 
-          if (!permissionId) {
-            throw new Error(
-              `Izin "${permissionName}" tidak ada di database. Periksa migration katalog izin.`
-            );
-          }
+        if (!permissionId) {
+          throw new Error(
+            `Izin "${permissionName}" tidak ada di database. Periksa migration katalog izin.`
+          );
+        }
 
-          return { role_id: roleIdByName[roleName], permission_id: permissionId };
-        })
+        return { role_id: roleIdByName[roleName], permission_id: permissionId };
+      })
     );
 
     await queryInterface.bulkInsert('role_permissions', rolePermissionRows, {

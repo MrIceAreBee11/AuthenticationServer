@@ -36,11 +36,19 @@ const list = (fallback) =>
   z
     .string()
     .default(fallback)
-    .transform((value) => value.split(',').map((item) => item.trim()).filter(Boolean));
+    .transform((value) =>
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    );
 
 /** Boolean eksplisit; string "false" itu truthy, jadi tidak boleh diandalkan. */
 const flag = (fallback) =>
-  z.enum(['true', 'false']).default(fallback).transform((value) => value === 'true');
+  z
+    .enum(['true', 'false'])
+    .default(fallback)
+    .transform((value) => value === 'true');
 
 /**
  * Durasi bergaya "15m" atau "7d", disimpan sebagai detik.

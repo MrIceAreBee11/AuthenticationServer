@@ -8,11 +8,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432"
+      - '${DB_PORT}:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER} -d ${DB_NAME}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,11 +23,11 @@ services:
     restart: unless-stopped
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
     ports:
-      - "${REDIS_PORT}:6379"
+      - '${REDIS_PORT}:6379'
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a ${REDIS_PASSWORD} ping | grep PONG"]
+      test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a ${REDIS_PASSWORD} ping | grep PONG']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,12 +40,12 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+      - '${RABBITMQ_PORT}:5672'
+      - '${RABBITMQ_MANAGEMENT_PORT}:15672'
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 15s
       timeout: 10s
       retries: 5
@@ -59,8 +59,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
+      - '${MINIO_PORT}:9000'
+      - '${MINIO_CONSOLE_PORT}:9001'
     volumes:
       - miniodata:/data
 
@@ -77,14 +77,20 @@ services:
       APP_URL: http://localhost:${PORT}
       TRUST_PROXY: 0
     ports:
-      - "${PORT}:3000"
+      - '${PORT}:3000'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -94,7 +100,7 @@ services:
     build: .
     container_name: auth_worker
     restart: unless-stopped
-    command: ["node", "src/workers/emailWorker.js"]
+    command: ['node', 'src/workers/emailWorker.js']
     env_file: .env
     environment:
       DB_HOST: postgres

@@ -34,9 +34,7 @@ const buildFileContent = (permissions) => {
 
   const body = [...groups.entries()]
     .map(([resource, items]) => {
-      const lines = items.map(
-        (item) => `  ${toConstantKey(item.name)}: '${item.name}',`
-      );
+      const lines = items.map((item) => `  ${toConstantKey(item.name)}: '${item.name}',`);
 
       return [`  // ${resource}`, ...lines].join('\n');
     })
@@ -75,15 +73,11 @@ const run = async () => {
   const permissionNames = await permissions.findAllNames();
 
   if (permissionNames.length === 0) {
-    throw new Error(
-      'Tabel permissions kosong. Jalankan "npm run db:migrate" terlebih dahulu.'
-    );
+    throw new Error('Tabel permissions kosong. Jalankan "npm run db:migrate" terlebih dahulu.');
   }
 
   const content = buildFileContent(permissionNames.map((name) => ({ name })));
-  const previous = fs.existsSync(OUTPUT_PATH)
-    ? fs.readFileSync(OUTPUT_PATH, 'utf8')
-    : null;
+  const previous = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf8') : null;
 
   if (previous === content) {
     console.log(`Tidak ada perubahan — ${permissionNames.length} izin, berkas sudah sesuai.`);

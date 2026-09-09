@@ -1,9 +1,9 @@
 # Dokumentasi
 
-| Berkas | Isi |
-|---|---|
+| Berkas                      | Isi                                                |
+| --------------------------- | -------------------------------------------------- |
 | `Laporan-Auth-Service.docx` | Laporan teknis lengkap, Bab 1–15 dan tiga lampiran |
-| `Brief-PPT.md` | Bahan penyusunan deck presentasi, 15 slide |
+| `Brief-PPT.md`              | Bahan penyusunan deck presentasi, 15 slide         |
 
 ## Membuat Ulang Laporan
 

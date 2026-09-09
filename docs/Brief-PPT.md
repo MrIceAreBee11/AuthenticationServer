@@ -42,14 +42,14 @@ dan durasi. Catatan pembicara TIDAK ditulis di slide — taruh di area notes.
 
 ## ALOKASI WAKTU (total 20 menit)
 
-| Bagian | Slide | Durasi |
-|---|---|---|
-| Pembuka & konteks | 1–3 | 2,5 menit |
-| Arsitektur & desain | 4–6 | 4,5 menit |
-| Cara kerja fitur | 7–9 | 3,5 menit |
-| **Demo langsung** | 10 | **5 menit** |
-| Keamanan, deployment, pengujian | 11–13 | 3 menit |
-| Pelajaran & penutup | 14–15 | 1,5 menit |
+| Bagian                          | Slide | Durasi      |
+| ------------------------------- | ----- | ----------- |
+| Pembuka & konteks               | 1–3   | 2,5 menit   |
+| Arsitektur & desain             | 4–6   | 4,5 menit   |
+| Cara kerja fitur                | 7–9   | 3,5 menit   |
+| **Demo langsung**               | 10    | **5 menit** |
+| Keamanan, deployment, pengujian | 11–13 | 3 menit     |
+| Pelajaran & penutup             | 14–15 | 1,5 menit   |
 
 ---
 
@@ -62,7 +62,7 @@ dan durasi. Catatan pembicara TIDAK ditulis di slide — taruh di area notes.
 
 **Saran visual:** Slide navy penuh, judul besar. Nama teknologi kecil di bawah, dipisah titik tengah.
 
-**Catatan pembicara:** "Saya akan lebih banyak menjelaskan *kenapa* keputusannya diambil daripada *apa* yang dibuat. Di tengah nanti ada demo langsung."
+**Catatan pembicara:** "Saya akan lebih banyak menjelaskan _kenapa_ keputusannya diambil daripada _apa_ yang dibuat. Di tengah nanti ada demo langsung."
 
 ---
 
@@ -71,6 +71,7 @@ dan durasi. Catatan pembicara TIDAK ditulis di slide — taruh di area notes.
 **Judul:** Kenapa Dipisah Jadi Satu Service
 
 **Isi:**
+
 - Setiap aplikasi butuh tiga hal yang sama: memastikan identitas, mengatur hak akses, menyimpan profil
 - Kalau tiap aplikasi membangun sendiri: pekerjaan berulang, kualitas keamanan berbeda-beda
 - Keamanan mudah terlihat benar padahal salah — dan kesalahannya tidak menimbulkan error
@@ -85,14 +86,14 @@ dan durasi. Catatan pembicara TIDAK ditulis di slide — taruh di area notes.
 
 **Judul:** Yang Dibangun dan Yang Sengaja Tidak
 
-| Termasuk | Tidak Termasuk |
-|---|---|
-| Login & logout | Pendaftaran mandiri publik |
-| Verifikasi token per request | Login lewat Google / OAuth |
-| Role & permission (RBAC) | 2FA / OTP |
-| Lupa password lewat email | Refresh token |
-| Profil & foto avatar | Audit log aktivitas |
-| Manajemen user & role | Ganti alamat email |
+| Termasuk                     | Tidak Termasuk                |
+| ---------------------------- | ----------------------------- |
+| Login & logout               | Pendaftaran mandiri publik    |
+| Verifikasi token per request | Login lewat Google / OAuth    |
+| Role & permission (RBAC)     | 2FA / OTP                     |
+| Lupa password lewat email    | Refresh token                 |
+| Profil & foto avatar         | Audit log aktivitas           |
+| Manajemen user & role        | Ganti alamat email            |
 | Antarmuka console untuk demo | Frontend untuk pengguna akhir |
 
 **Saran visual:** Dua kolom. Kiri centang tosca, kanan garis putus-putus abu — kesan "sengaja dikosongkan", bukan "gagal".
@@ -105,14 +106,14 @@ dan durasi. Catatan pembicara TIDAK ditulis di slide — taruh di area notes.
 
 **Judul:** Enam Komponen, Enam Peran Berbeda
 
-| Komponen | Analogi |
-|---|---|
-| Express | Resepsionis — menerima, memeriksa, mengarahkan |
-| PostgreSQL | Lemari arsip tahan api — rapi, permanen |
-| Redis | Papan tulis berpenghapus otomatis — cepat, sementara |
-| RabbitMQ | Loket titipan — dititipkan, dikerjakan belakangan |
-| MinIO | Gudang — untuk barang besar, bukan dokumen tipis |
-| Docker | Kontainer pengiriman standar — isi bebas, perlakuan sama |
+| Komponen   | Analogi                                                  |
+| ---------- | -------------------------------------------------------- |
+| Express    | Resepsionis — menerima, memeriksa, mengarahkan           |
+| PostgreSQL | Lemari arsip tahan api — rapi, permanen                  |
+| Redis      | Papan tulis berpenghapus otomatis — cepat, sementara     |
+| RabbitMQ   | Loket titipan — dititipkan, dikerjakan belakangan        |
+| MinIO      | Gudang — untuk barang besar, bukan dokumen tipis         |
+| Docker     | Kontainer pengiriman standar — isi bebas, perlakuan sama |
 
 **Saran visual:** Enam kartu sejajar. Nama teknologi besar, analogi di bawahnya. Kalau memungkinkan, ilustrasi denah kantor sederhana bergaris tipis satu warna.
 
@@ -175,6 +176,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 **Judul:** Login: Empat Keputusan pada Satu Alur Pendek
 
 **Isi:**
+
 - Pesan error seragam — satu kalimat untuk semua sebab kegagalan
 - Waktu respons disamakan — pembandingan tetap dijalankan meski user tidak ada
 - Status aktif diperiksa **setelah** password terverifikasi
@@ -191,6 +193,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 **Judul:** JWT Tidak Bisa Dicabut — Kecuali Dibantu
 
 **Isi:**
+
 - JWT tidak disimpan di server, jadi tidak ada yang bisa dihapus saat logout
 - Tanpa penanganan: token yang sudah di-logout tetap sah sampai kedaluwarsa
 - Solusi: daftar cabut di Redis, masa simpan **sama persis** dengan sisa umur token
@@ -207,6 +210,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 **Judul:** Yang Tidak Perlu Ditunggu, Jangan Ditunggu
 
 **Isi:**
+
 - Kirim email lewat SMTP: **1–3 detik**
 - Waktu respons API: **135 ms** — baik saat pekerja hidup maupun mati
 - Pekerja dimatikan → pesan menunggu di antrean, tidak hilang
@@ -228,17 +232,18 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 
 ### Skenario demo — ikuti urutan ini
 
-| No | Aksi | Yang ditunjukkan | Waktu |
-|---|---|---|---|
-| 1 | Login dari halaman awal | Panel kanan mencatat `POST /auth/login` beserta waktu responsnya | 30 dtk |
-| 2 | Dashboard | Identitas, 11 izin, status PostgreSQL & Redis — semuanya dari endpoint sungguhan | 30 dtk |
-| 3 | Buka **Matriks Izin** | **Inti demo.** Perbedaan panjang kolom = perbedaan wewenang. Tunjuk baris `roles.create` dan `roles.update` yang hanya dimiliki superadmin | 1 mnt |
-| 4 | Klik **Ubah Izin**, cabut satu izin dari role `admin`, simpan | Panel kanan menampilkan `PUT /roles/:id/permissions`. Sebutkan versi cache dinaikkan sehingga seluruh pengguna role itu langsung terpengaruh | 1 mnt |
-| 5 | Buka **Pengguna**, klik **Role** pada Dewi Lestari, beri role `user` | Perubahan role berlaku seketika tanpa pengguna perlu login ulang | 1 mnt |
-| 6 | Buka **Status & Cakupan** | Daftar 26 endpoint, yang sudah dipanggil menyala hijau | 45 dtk |
-| 7 | Klik satu entri di panel kanan | Isi request dan response mentah — bukti API-nya nyata | 15 dtk |
+| No  | Aksi                                                                 | Yang ditunjukkan                                                                                                                             | Waktu  |
+| --- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | Login dari halaman awal                                              | Panel kanan mencatat `POST /auth/login` beserta waktu responsnya                                                                             | 30 dtk |
+| 2   | Dashboard                                                            | Identitas, 11 izin, status PostgreSQL & Redis — semuanya dari endpoint sungguhan                                                             | 30 dtk |
+| 3   | Buka **Matriks Izin**                                                | **Inti demo.** Perbedaan panjang kolom = perbedaan wewenang. Tunjuk baris `roles.create` dan `roles.update` yang hanya dimiliki superadmin   | 1 mnt  |
+| 4   | Klik **Ubah Izin**, cabut satu izin dari role `admin`, simpan        | Panel kanan menampilkan `PUT /roles/:id/permissions`. Sebutkan versi cache dinaikkan sehingga seluruh pengguna role itu langsung terpengaruh | 1 mnt  |
+| 5   | Buka **Pengguna**, klik **Role** pada Dewi Lestari, beri role `user` | Perubahan role berlaku seketika tanpa pengguna perlu login ulang                                                                             | 1 mnt  |
+| 6   | Buka **Status & Cakupan**                                            | Daftar 26 endpoint, yang sudah dipanggil menyala hijau                                                                                       | 45 dtk |
+| 7   | Klik satu entri di panel kanan                                       | Isi request dan response mentah — bukti API-nya nyata                                                                                        | 15 dtk |
 
 **Persiapan sebelum presentasi:**
+
 - Jalankan `docker compose up -d` dan pastikan `docker compose ps` menunjukkan `app` **healthy**
 - Buka `http://localhost:3000` dan login sekali untuk memastikan lancar, lalu **logout** agar demo dimulai dari layar login
 - Klik **Bersihkan** pada panel kanan agar catatan mulai dari nol
@@ -252,14 +257,14 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 
 **Judul:** 19 Ancaman Ditangani — Enam yang Paling Berdampak
 
-| Ancaman | Penanganan |
-|---|---|
-| User enumeration | Pesan error seragam untuk semua sebab kegagalan |
-| Timing attack | Waktu respons disamakan lewat pembandingan tiruan |
-| Brute force | Enkripsi lambat (cost 12) + batas 5 percobaan / 15 menit |
-| Privilege escalation | Penetapan role dijaga izin yang tidak dimiliki admin |
-| Serangan ke akun lebih tinggi | Hanya superadmin boleh mengelola superadmin |
-| XSS lewat unggahan | SVG ditolak — bisa memuat JavaScript di dalamnya |
+| Ancaman                       | Penanganan                                               |
+| ----------------------------- | -------------------------------------------------------- |
+| User enumeration              | Pesan error seragam untuk semua sebab kegagalan          |
+| Timing attack                 | Waktu respons disamakan lewat pembandingan tiruan        |
+| Brute force                   | Enkripsi lambat (cost 12) + batas 5 percobaan / 15 menit |
+| Privilege escalation          | Penetapan role dijaga izin yang tidak dimiliki admin     |
+| Serangan ke akun lebih tinggi | Hanya superadmin boleh mengelola superadmin              |
+| XSS lewat unggahan            | SVG ditolak — bisa memuat JavaScript di dalamnya         |
 
 **Saran visual:** Dua kolom, ancaman dengan penanda merah tipis, penanganan dengan penanda tosca. Angka besar "19" di sudut.
 
@@ -272,6 +277,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 **Judul:** Satu Perintah, Enam Layanan
 
 **Isi:**
+
 - `docker compose up -d --build`
 - Aplikasi menunggu database dan Redis benar-benar siap sebelum start
 - Start dari nol: **0 kegagalan, 0 restart**
@@ -289,6 +295,7 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 **Judul:** 15 Pengujian Otomatis — Sebagian Besar Menguji Keamanan
 
 **Isi:**
+
 - `15 pass · 0 fail · 3,1 detik`
 - Diuji pada tingkat end-to-end lewat HTTP sungguhan, bukan per fungsi
 - Yang dijaga: pesan seragam, hash tidak bocor, token mati setelah logout, role superadmin terlindungi
@@ -305,11 +312,11 @@ users ──┬── user_roles ──┬── roles ──┬── role_perm
 
 **Judul:** Tiga Kesalahan yang Paling Banyak Mengajari
 
-| Kasus | Akar penyebab | Pelajaran |
-|---|---|---|
-| Token lama masih diterima setelah reset password | Dua satuan waktu dibandingkan langsung: token dalam detik, database dalam milidetik | Kesalahan yang gagal ke arah **terbuka** paling berbahaya |
+| Kasus                                                | Akar penyebab                                                                                          | Pelajaran                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Token lama masih diterima setelah reset password     | Dua satuan waktu dibandingkan langsung: token dalam detik, database dalam milidetik                    | Kesalahan yang gagal ke arah **terbuka** paling berbahaya                                       |
 | Endpoint selalu gagal di container, normal di laptop | Klien Redis punya dua status: soket terbuka, dan siap menerima perintah. Yang diperiksa status pertama | Optimasi yang membuat sistem gagal lebih cepat memunculkan bug yang tersembunyi oleh kelambatan |
-| Superadmin ditolak padahal punya semua izin | Nama izin salah ketik — tunggal, bukan jamak. Tidak ada error karena bagi sistem itu hanya teks | Arah kegagalan sudah benar: salah ketik menolak akses, bukan memberikannya |
+| Superadmin ditolak padahal punya semua izin          | Nama izin salah ketik — tunggal, bukan jamak. Tidak ada error karena bagi sistem itu hanya teks        | Arah kegagalan sudah benar: salah ketik menolak akses, bukan memberikannya                      |
 
 **Saran visual:** Tiga kartu sejajar, tiap kartu berlabel Gejala / Akar penyebab / Pelajaran.
 

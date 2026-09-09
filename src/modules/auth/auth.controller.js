@@ -127,11 +127,7 @@ class AuthController {
 
     await this.passwords.resetPassword({ token, newPassword });
 
-    return successResponse(
-      res,
-      200,
-      'Password berhasil diubah. Silakan login kembali.'
-    );
+    return successResponse(res, 200, 'Password berhasil diubah. Silakan login kembali.');
   };
 }
 

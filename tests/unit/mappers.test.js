@@ -60,7 +60,9 @@ test('toUserDto — yang keluar', async (t) => {
   await t.test('role di dalam pengguna hanya identitasnya, izinnya tidak dibawa', async () => {
     const dto = toUserDto(
       barisPengguna({
-        roles: [{ id: 1, name: 'admin', description: 'Administrator', permissions: [{ name: 'x' }] }],
+        roles: [
+          { id: 1, name: 'admin', description: 'Administrator', permissions: [{ name: 'x' }] },
+        ],
       })
     );
 
@@ -205,9 +207,7 @@ test('toRoleDto', async (t) => {
     );
 
     assert.ok(!('permissions' in tanpa));
-    assert.deepEqual(dengan.permissions, [
-      { id: 1, name: 'users.read', description: 'x' },
-    ]);
+    assert.deepEqual(dengan.permissions, [{ id: 1, name: 'users.read', description: 'x' }]);
   });
 
   await t.test('toRoleListDto memetakan seluruh baris', async () => {
@@ -218,7 +218,12 @@ test('toRoleDto', async (t) => {
 
 test('toPermissionDto & katalog', async (t) => {
   await t.test('hanya id, name, description', async () => {
-    const dto = toPermissionDto({ id: 1, name: 'users.read', description: 'x', createdAt: new Date() });
+    const dto = toPermissionDto({
+      id: 1,
+      name: 'users.read',
+      description: 'x',
+      createdAt: new Date(),
+    });
 
     assert.deepEqual(Object.keys(dto).sort(), ['description', 'id', 'name']);
   });

@@ -52,9 +52,7 @@ module.exports = {
       },
     ]);
 
-    await queryInterface.bulkInsert('user_roles', [
-      { user_id: userId, role_id: roleRows[0].id },
-    ]);
+    await queryInterface.bulkInsert('user_roles', [{ user_id: userId, role_id: roleRows[0].id }]);
   },
 
   async down(queryInterface) {
