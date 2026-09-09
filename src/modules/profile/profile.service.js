@@ -10,10 +10,9 @@
  *
  * KENAPA KEGAGALAN STORAGE DIMAAFKAN: nama, email, dan role sama sekali tidak
  * bergantung pada penyimpanan berkas. Ketika MinIO bermasalah, pengguna
- * melihat profilnya tanpa foto — bukan halaman error.
+ * melihat profilnya tanpa foto — bukan halaman error. Aturan itu kini tinggal
+ * di services/avatar.store.js, karena modul users memerlukannya juga.
  */
-
-const crypto = require('node:crypto');
 
 const { BadRequestError, NotFoundError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
@@ -21,19 +20,11 @@ const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions
 
 const PHONE_PATTERN = /^[0-9+\-\s]{8,20}$/;
 
-const EXTENSION_BY_MIME = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
 class ProfileService {
-  constructor({ users, storage, avatar, logger, audit }) {
-    this.logger = logger;
-    this.audit = audit;
+  constructor({ users, avatars, audit }) {
     this.users = users;
-    this.storage = storage;
-    this.avatar = avatar;
+    this.avatars = avatars;
+    this.audit = audit;
   }
 
   async #findOrFail(userId) {
@@ -46,40 +37,12 @@ class ProfileService {
     return user;
   }
 
-  /**
-   * Kegagalan pembuatan alamat sengaja dilewati dan mengembalikan null.
-   * Nama, email, dan role sama sekali tidak bergantung pada penyimpanan
-   * berkas — jadi ketika MinIO bermasalah, pengguna melihat profilnya tanpa
-   * foto, bukan halaman error.
-   */
-  async #buildAvatarUrl(avatarKey) {
-    if (!avatarKey) {
-      return null;
-    }
-
-    try {
-      return await this.storage.getPresignedUrl(avatarKey, this.avatar.urlTtlSeconds);
-    } catch (error) {
-      this.logger.exception('gagal membuat alamat sementara avatar', error);
-
-      return null;
-    }
-  }
-
-  async #removeObjectQuietly(objectKey, context) {
-    try {
-      await this.storage.removeObject(objectKey);
-    } catch (error) {
-      this.logger.exception('gagal menghapus berkas', error, { context });
-    }
-  }
-
   async getProfile(userId) {
     const user = await this.#findOrFail(userId);
 
     return {
       ...user.toJSON(),
-      avatarUrl: await this.#buildAvatarUrl(user.avatarKey),
+      avatarUrl: await this.avatars.urlFor(user.avatarKey),
     };
   }
 
@@ -128,13 +91,10 @@ class ProfileService {
   async updateAvatar(userId, file) {
     const user = await this.#findOrFail(userId);
 
-    const extension = EXTENSION_BY_MIME[file.mimetype];
-    const objectKey = `${userId}/${crypto.randomUUID()}.${extension}`;
-
     // Urutannya disengaja: unggah baru, perbarui basis data, baru hapus yang
     // lama. Kalau penghapusan didahulukan lalu pembaruan gagal, basis data
     // menunjuk berkas yang sudah tidak ada — dan avatar itu rusak permanen.
-    await this.storage.putObject(objectKey, file.buffer, file.mimetype);
+    const objectKey = await this.avatars.save(userId, file);
 
     const previousKey = user.avatarKey;
 
@@ -147,9 +107,7 @@ class ProfileService {
       metadata: { mimeType: file.mimetype, sizeBytes: file.size },
     });
 
-    if (previousKey) {
-      await this.#removeObjectQuietly(previousKey, 'avatar lama');
-    }
+    await this.avatars.removeQuietly(previousKey, { context: 'avatar lama', userId });
 
     return this.getProfile(userId);
   }
@@ -170,7 +128,7 @@ class ProfileService {
       resourceType: AUDIT_RESOURCES.USER,
       resourceId: userId,
     });
-    await this.#removeObjectQuietly(previousKey, 'avatar');
+    await this.avatars.removeQuietly(previousKey, { context: 'avatar', userId });
 
     return this.getProfile(userId);
   }

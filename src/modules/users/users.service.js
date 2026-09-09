@@ -3,33 +3,29 @@
  *
  * KENAPA DI modules/users/: seluruh isinya melayani satu fitur.
  *
- * DUA ATURAN DI ATAS RBAC yang perlu diperhatikan. RBAC hanya menjawab "boleh
- * tidak kamu mengubah user", bukan "boleh tidak kamu mengubah user INI".
- * Selisih itu diisi oleh #assertCanManage, dan berpasangan keduanya menjamin
- * selalu ada minimal satu superadmin: superadmin boleh menghapus superadmin
- * lain tetapi tidak dirinya sendiri, dan admin biasa tidak dapat menyentuh
- * keduanya. Inilah pertahanan terhadap IDOR — dan ia harus di service, bukan
- * di middleware, karena hanya di sini identitas targetnya sudah diketahui.
+ * DUA ATURAN DI ATAS RBAC tidak lagi berada di sini — keduanya pindah ke
+ * users.policy.js, karena hanya bagian itu yang berubah karena alasan keamanan
+ * dan hanya bagian itu yang perlu diuji tanpa menyentuh basis data. Yang
+ * tertinggal di berkas ini murni urutan operasi.
  */
 
-const { BadRequestError, ForbiddenError, NotFoundError } = require('../../utils/AppError');
+const { BadRequestError, NotFoundError } = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../constants/errorCodes');
-const { ROLES } = require('../../constants/roles');
 const { AUDIT_ACTIONS, AUDIT_RESOURCES } = require('../../constants/auditActions');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class UsersService {
-  constructor({ users, roles, permissions, storage, policy, paging, database, logger, audit }) {
-    this.logger = logger;
-    this.audit = audit;
+  constructor({ users, roles, permissions, avatars, policy, passwords, paging, database, audit }) {
     this.users = users;
     this.roles = roles;
     this.permissions = permissions;
-    this.storage = storage;
+    this.avatars = avatars;
     this.policy = policy;
+    this.passwords = passwords;
     this.paging = paging;
     this.database = database;
+    this.audit = audit;
   }
 
   /**
@@ -49,54 +45,6 @@ class UsersService {
     }
 
     return user;
-  }
-
-  #isSuperadmin(user) {
-    return user.roles.some((role) => role.name === ROLES.SUPERADMIN);
-  }
-
-  /**
-   * Dua aturan di atas RBAC. RBAC menjawab "boleh tidak kamu mengubah user",
-   * bukan "boleh tidak kamu mengubah user INI".
-   *
-   * Berpasangan, keduanya menjamin selalu ada minimal satu superadmin:
-   * superadmin boleh menghapus superadmin lain tetapi tidak dirinya sendiri,
-   * dan admin biasa tidak dapat menyentuh keduanya.
-   */
-  async #assertCanManage(actorId, target) {
-    if (actorId === target.id) {
-      await this.audit.recordDenied({
-        action: AUDIT_ACTIONS.USER_UPDATED,
-        resourceType: AUDIT_RESOURCES.USER,
-        resourceId: target.id,
-        reason: 'mencoba mengelola akun sendiri lewat endpoint users',
-      });
-
-      throw new ForbiddenError(
-        'Gunakan endpoint /profile untuk mengubah akun Anda sendiri',
-        ERROR_CODES.SELF_MANAGEMENT_FORBIDDEN
-      );
-    }
-
-    if (this.#isSuperadmin(target)) {
-      const actor = await this.#findOrFail(actorId);
-
-      if (!this.#isSuperadmin(actor)) {
-        // Percobaan menyentuh akun superadmin oleh yang bukan superadmin
-        // adalah kejadian yang paling perlu terlihat dalam jejak audit.
-        await this.audit.recordDenied({
-          action: AUDIT_ACTIONS.USER_UPDATED,
-          resourceType: AUDIT_RESOURCES.USER,
-          resourceId: target.id,
-          reason: 'bukan superadmin, mencoba mengelola akun superadmin',
-        });
-
-        throw new ForbiddenError(
-          'Anda tidak dapat mengelola akun superadmin',
-          ERROR_CODES.SUPERADMIN_PROTECTED
-        );
-      }
-    }
   }
 
   async #resolveRoles(roleIds) {
@@ -159,9 +107,9 @@ class UsersService {
       );
     }
 
-    if (String(password).length < this.policy.minLength) {
+    if (String(password).length < this.passwords.minLength) {
       throw new BadRequestError(
-        `Password minimal ${this.policy.minLength} karakter`,
+        `Password minimal ${this.passwords.minLength} karakter`,
         ERROR_CODES.VALIDATION_FAILED
       );
     }
@@ -197,7 +145,7 @@ class UsersService {
   async update(actorId, userId, { fullName, phone, isActive }) {
     const target = await this.#findOrFail(userId);
 
-    await this.#assertCanManage(actorId, target);
+    await this.policy.assertCanManage(actorId, target);
 
     const changes = {};
 
@@ -244,7 +192,7 @@ class UsersService {
   async setRoles(actorId, userId, roleIds) {
     const target = await this.#findOrFail(userId);
 
-    await this.#assertCanManage(actorId, target);
+    await this.policy.assertCanManage(actorId, target);
 
     const roles = await this.#resolveRoles(roleIds);
 
@@ -276,7 +224,7 @@ class UsersService {
   async remove(actorId, userId) {
     const target = await this.#findOrFail(userId);
 
-    await this.#assertCanManage(actorId, target);
+    await this.policy.assertCanManage(actorId, target);
 
     const { avatarKey } = target;
 
@@ -293,15 +241,7 @@ class UsersService {
       metadata: { email: target.email },
     });
 
-    if (avatarKey) {
-      try {
-        await this.storage.removeObject(avatarKey);
-      } catch (error) {
-        this.logger.exception('gagal menghapus avatar user terhapus', error, {
-          userId,
-        });
-      }
-    }
+    await this.avatars.removeQuietly(avatarKey, { context: 'avatar user terhapus', userId });
   }
 }
 

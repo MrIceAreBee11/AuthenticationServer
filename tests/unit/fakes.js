@@ -345,6 +345,48 @@ const fakeAudit = ({ log = createLog() } = {}) => {
   };
 };
 
+/**
+ * Penyimpanan objek palsu.
+ *
+ * `gagal` menerima nama operasi, sehingga satu pengujian dapat membuat
+ * HANYA removeObject yang gagal — persis skenario yang membedakan "kegagalan
+ * dimaafkan" dari "kegagalan menjatuhkan operasinya".
+ */
+const fakeStorage = ({ gagal = () => false } = {}) => {
+  const objek = new Map();
+
+  const jaga = (operasi, kunci) => {
+    if (gagal(operasi, kunci)) {
+      throw new Error(`MinIO tidak dapat dihubungi (${operasi} ${kunci})`);
+    }
+  };
+
+  return {
+    objek,
+    putObject: mock.fn(async (kunci, buffer, mimeType) => {
+      jaga('putObject', kunci);
+      objek.set(kunci, { buffer, mimeType });
+    }),
+    getPresignedUrl: mock.fn(async (kunci, detik) => {
+      jaga('getPresignedUrl', kunci);
+
+      return `https://penyimpanan.uji/${kunci}?berlaku=${detik}`;
+    }),
+    removeObject: mock.fn(async (kunci) => {
+      jaga('removeObject', kunci);
+      objek.delete(kunci);
+    }),
+  };
+};
+
+/** Konfigurasi avatar untuk pengujian; nilainya sama dengan bawaan skema. */
+const testAvatarSettings = (overrides = {}) => ({
+  maxSizeBytes: 2 * 1024 * 1024,
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  urlTtlSeconds: 3600,
+  ...overrides,
+});
+
 /** Objek res palsu yang merekam status dan isi jawaban. */
 const fakeResponse = () => {
   const listeners = new Map();
@@ -410,6 +452,8 @@ module.exports = {
   fakePermissionRepository,
   fakePermissionCache,
   fakeCache,
+  fakeStorage,
+  testAvatarSettings,
   fakeResponse,
   silenceErrorLog,
   silenceInfoLog,

@@ -41,10 +41,12 @@ const { IdempotencyRepository } = require('./repositories/idempotency.repository
 
 const { PermissionService } = require('./services/permission.service');
 const { AuditService } = require('./services/audit.service');
+const { AvatarStore } = require('./services/avatar.store');
 const { AuthService } = require('./modules/auth/auth.service');
 const { PasswordService } = require('./modules/auth/password.service');
 const { ProfileService } = require('./modules/profile/profile.service');
 const { UsersService } = require('./modules/users/users.service');
+const { UserManagementPolicy } = require('./modules/users/users.policy');
 const { RolesService } = require('./modules/roles/roles.service');
 
 const { AuthenticateMiddleware } = require('./middlewares/authenticate');
@@ -146,23 +148,24 @@ class Container {
       audit,
     });
 
-    const profiles = new ProfileService({
-      users,
+    // Penyimpanan avatar dirakit sebelum kedua modul yang memakainya.
+    const avatars = new AvatarStore({
       storage: this.storage,
       avatar: settings.upload.avatar,
-      logger: this.logger.child({ component: 'profile' }),
-      audit,
+      logger: this.logger.child({ component: 'avatar' }),
     });
+
+    const profiles = new ProfileService({ users, avatars, audit });
 
     const usersService = new UsersService({
       database: this.database,
       users,
       roles,
       permissions: permissionCache,
-      storage: this.storage,
-      policy: settings.password,
+      avatars,
+      policy: new UserManagementPolicy({ users, audit }),
+      passwords: settings.password,
       paging: settings.pagination.users,
-      logger: this.logger.child({ component: 'users' }),
       audit,
     });
 
