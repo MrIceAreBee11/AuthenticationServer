@@ -109,6 +109,13 @@ tidak ada pengujian unit yang benar-benar menghubungi apa pun.
 sungguhan dan memanggil endpoint lewat HTTP. Ia memerlukan `docker compose up
 -d` dan `npm run test:db:setup` lebih dulu.
 
+Berkasnya dijalankan **berurutan** (`--test-concurrency=1`), dan itu wajib.
+Keempat berkas memakai satu database dan satu Redis yang sama, termasuk satu
+jatah pembatas laju login yang dihitung per alamat IP. Dijalankan paralel,
+kegagalan login yang disengaja di satu berkas menghabiskan jatah berkas lain,
+lalu login yang seharusnya berhasil dijawab `429`. Kegagalan itu menyesatkan:
+ia tampak seperti bug autentikasi, padahal murni akibat pengujian tetangga.
+
 Ambang cakupan dipasang di `npm run test:coverage` dan membuat perintahnya
 gagal bila turun di bawah 80 persen baris maupun cabang.
 
