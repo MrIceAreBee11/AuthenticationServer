@@ -21,10 +21,10 @@ const crypto = require('node:crypto');
 
 const { config } = require('./config');
 
-const { Database } = require('./database');
-const { CacheClient } = require('./redis');
-const { MessageQueue } = require('./queue');
-const { ObjectStorage } = require('./storage');
+const { Database } = require('./infrastructure/database');
+const { CacheClient } = require('./infrastructure/redis');
+const { MessageQueue } = require('./infrastructure/queue');
+const { ObjectStorage } = require('./infrastructure/storage');
 const { TokenService } = require('./utils/token');
 const { Logger } = require('./utils/logger');
 const { RequestContext } = require('./utils/requestContext');

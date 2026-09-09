@@ -18,7 +18,7 @@
  */
 const amqp = require('amqplib');
 
-const { QUEUES } = require('../constants/cacheKeys');
+const { QUEUES } = require('../../constants/cacheKeys');
 
 class MessageQueue {
   #connection = null;

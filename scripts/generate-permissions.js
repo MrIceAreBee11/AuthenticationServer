@@ -10,8 +10,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { sequelize } = require('../src/database');
-const { permissionRepository } = require('../src/repositories/permission.repository');
+const { config } = require('../src/config');
+const { Database } = require('../src/infrastructure/database');
+const { PermissionRepository } = require('../src/repositories/permission.repository');
 
 const OUTPUT_PATH = path.join(__dirname, '..', 'src', 'constants', 'permissions.js');
 
@@ -64,8 +65,14 @@ module.exports = { PERMISSIONS };
 `;
 };
 
+// Dirakit di sini, bukan diambil dari container: skrip ini hanya butuh satu
+// tabel, sedangkan container ikut membuka Redis, RabbitMQ, dan MinIO yang
+// tidak ada hubungannya — dan gagalnya salah satu akan menggagalkan skrip.
+const database = new Database(config.app.env);
+
 const run = async () => {
-  const permissionNames = await permissionRepository.findAllNames();
+  const permissions = new PermissionRepository({ Permission: database.models.Permission });
+  const permissionNames = await permissions.findAllNames();
 
   if (permissionNames.length === 0) {
     throw new Error(
@@ -92,4 +99,4 @@ run()
     console.error('Gagal membuat konstanta izin:', error.message);
     process.exitCode = 1;
   })
-  .finally(() => sequelize.close());
+  .finally(() => database.close());

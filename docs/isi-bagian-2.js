@@ -562,7 +562,7 @@ module.exports = ({ h1, h2, h3, p, rich, quote, li, num, code, caption, table, b
 
   h3('Dua pengecualian yang disengaja'),
   p('Ada dua tempat di luar folder repository yang masih menyebut Sequelize, dan keduanya bukan penyusunan query.'),
-  num('Pembungkus transaksi di src/database/index.js. Service role dan service pengguna memerlukan beberapa operasi tulis yang harus berhasil bersama-sama atau gagal bersama-sama. Pembungkus ini menyediakannya tanpa memaksa service mengimpor Sequelize.'),
+  num('Pembungkus transaksi di src/infrastructure/database/index.js. Service role dan service pengguna memerlukan beberapa operasi tulis yang harus berhasil bersama-sama atau gagal bersama-sama. Pembungkus ini menyediakannya tanpa memaksa service mengimpor Sequelize.'),
   num('Berkas server.js, yang membuka dan menutup koneksi. Ia adalah titik penyusunan aplikasi, jadi memang tugasnya mengurus siklus hidup koneksi — bukan menyusun query.'),
 
   h3('Kenapa repository mengembalikan objek model, bukan objek biasa'),

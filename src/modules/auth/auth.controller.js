@@ -4,7 +4,7 @@
  * KENAPA DI modules/auth/: isinya hanya melayani fitur ini.
  *
  * KENAPA ANTREAN DISUNTIKKAN, BUKAN DI-IMPORT: berkas ini dulu meng-require
- * publish() langsung dari src/queue. Akibatnya controller terikat pada RabbitMQ
+ * publish() langsung dari adapter antrean. Akibatnya controller terikat pada RabbitMQ
  * dan tidak bisa diuji tanpa broker hidup, padahal yang benar-benar ia
  * butuhkan hanya "sesuatu yang bisa dititipi pesan".
  */

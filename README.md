@@ -191,10 +191,11 @@ src/
 ├── constants/     data tetap: satuan, nama role, awalan kunci, izin
 ├── mappers/       penentu field yang boleh keluar (daftar-yang-diizinkan)
 ├── utils/         fungsi murni + TokenService
-├── database/      Database (koneksi + model), migration, seeder
-├── redis/         CacheClient
-├── queue/         MessageQueue
-├── storage/       ObjectStorage
+├── infrastructure/ adapter ke seberang batas proses
+│   ├── database/  koneksi PostgreSQL + model, migration, seeder
+│   ├── redis/     CacheClient
+│   ├── queue/     MessageQueue
+│   └── storage/   ObjectStorage
 ├── repositories/  SATU-SATUNYA tempat penyusunan query
 ├── services/      logika bisnis lintas fitur
 ├── middlewares/   pemeriksaan sebelum controller, semuanya class

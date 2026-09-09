@@ -22,7 +22,7 @@
 const nodemailer = require('nodemailer');
 
 const { config } = require('../config');
-const { MessageQueue } = require('../queue');
+const { MessageQueue } = require('../infrastructure/queue');
 const { Logger } = require('../utils/logger');
 const { QUEUES } = require('../constants/cacheKeys');
 const { SECONDS } = require('../constants/units');

@@ -2,12 +2,12 @@
 
 | Berkas | Isi |
 |---|---|
-| `Laporan-Auth-Service.docx` | Laporan teknis lengkap, 43 halaman |
+| `Laporan-Auth-Service.docx` | Laporan teknis lengkap, Bab 1–15 dan tiga lampiran |
 | `Brief-PPT.md` | Bahan penyusunan deck presentasi, 15 slide |
 
 ## Membuat Ulang Laporan
 
-Isi laporan ditulis sebagai kode di `isi-bagian-1.js` (Bab 1–5) dan `isi-bagian-2.js` (Bab 6–11
+Isi laporan ditulis sebagai kode di `isi-bagian-1.js` (Bab 1–5) dan `isi-bagian-2.js` (Bab 6–15
 dan lampiran). Berkas `generate-laporan.js` mengurus tata letak, gaya, dan halaman judul.
 
 Sunting berkas `isi-bagian-*.js`, lalu jalankan:

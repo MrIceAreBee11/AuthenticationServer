@@ -23,7 +23,7 @@
 const { Model, DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-const { config } = require('../../config');
+const { config } = require('../../../config');
 
 // Cost factor bcrypt. Dibaca dari config karena ia tombol operasional: naikkan
 // saat perangkat makin cepat, dan turunkan sementara di lingkungan pengujian

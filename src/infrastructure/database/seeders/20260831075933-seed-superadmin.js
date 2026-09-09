@@ -19,8 +19,8 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 
-const { config } = require('../../config');
-const { ROLES } = require('../../constants/roles');
+const { config } = require('../../../config');
+const { ROLES } = require('../../../constants/roles');
 
 module.exports = {
   async up(queryInterface) {

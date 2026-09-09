@@ -1,9 +1,14 @@
 /**
  * BERKAS INI: koneksi PostgreSQL, registri model, dan pembungkus transaksi.
  *
- * KENAPA DI database/ DAN BUKAN infra/: folder ini juga menampung models/,
- * migrations/, dan seeders/ yang jalurnya ditunjuk .sequelizerc. Memindahkannya
- * berarti mengubah kontrak dengan sequelize-cli tanpa imbalan apa pun.
+ * KENAPA DI infrastructure/: PostgreSQL, Redis, RabbitMQ, dan MinIO sama-sama
+ * berada di seberang batas proses. Keempatnya adapter, bukan fitur, jadi
+ * keempatnya berkumpul di satu tempat alih-alih empat folder tingkat atas.
+ *
+ * CATATAN UNTUK YANG MEMINDAHKAN LAGI: models/, migrations/, dan seeders/ di
+ * bawah folder ini jalurnya ditunjuk .sequelizerc. Memindahkannya tanpa ikut
+ * menyunting berkas itu membuat sequelize-cli melapor "No migrations were
+ * executed" — bukan error, jadi kelihatan seolah semuanya sudah berjalan.
  *
  * KENAPA CLASS: model Sequelize terikat pada satu instance sequelize saat
  * didefinisikan. Membungkusnya dalam class membuat ikatan itu terjadi di dalam
@@ -13,7 +18,7 @@
  */
 const { Sequelize } = require('sequelize');
 
-const databaseConfig = require('../config/database');
+const databaseConfig = require('../../config/database');
 
 const MODEL_FACTORIES = {
   User: require('./models/user'),
