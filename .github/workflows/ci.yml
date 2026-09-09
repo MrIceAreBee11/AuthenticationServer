@@ -1,0 +1,93 @@
+# Gerbang yang harus dilewati setiap perubahan sebelum masuk main.
+#
+# KENAPA DUA PEKERJAAN TERPISAH: lint dan format tidak butuh satu layanan pun
+# dan selesai dalam hitungan detik. Memisahkannya berarti salah ketik terdeteksi
+# tanpa menunggu Postgres menyala.
+#
+# KENAPA docker compose, BUKAN service containers bawaan GitHub: Redis di
+# project ini dijalankan dengan --requirepass, dan service container tidak bisa
+# menimpa perintah image. Memakai docker-compose.yml yang sama dengan mesin
+# pengembang juga menghilangkan satu sumber perbedaan: kalau CI hijau, yang
+# terbukti hijau adalah susunan yang sungguhan dipakai.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Lint dan format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run format:check
+
+  test:
+    name: Pengujian
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Pengujian unit dijalankan LEBIH DULU dan tanpa layanan apa pun. Kalau ia
+      # gagal, tidak ada gunanya menyalakan Postgres. Sekaligus membuktikan
+      # klaim di README bahwa pengujian unit memang tidak menyentuh apa pun.
+      - name: Pengujian unit beserta ambang cakupan
+        run: npm run test:coverage
+
+      - name: Siapkan konfigurasi
+        run: cp .env.ci .env
+
+      - name: Nyalakan Postgres dan Redis
+        run: docker compose up -d --wait postgres redis
+
+      - name: Bentuk dan isi database pengujian
+        run: npm run test:db:setup
+
+      - name: Pengujian end-to-end
+        run: npm run test:e2e
+
+      # Log layanan hanya berguna ketika ada yang gagal, dan justru pada saat
+      # itulah ia paling sulit didapat kalau tidak diambil di sini.
+      - name: Log layanan bila gagal
+        if: failure()
+        run: docker compose logs postgres redis
+
+  build:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Membuktikan Dockerfile masih dapat dibangun. Pemindahan folder
+      # sebelumnya adalah contoh perubahan yang lolos pengujian di mesin
+      # pengembang tetapi dapat mematahkan image, karena image menyalin src/
+      # dan menjalankannya dengan jalur yang berbeda.
+      - name: Bangun image
+        run: docker build -t auth-service:ci .
+
+      - name: Pastikan aplikasi dapat dimuat di dalam image
+        run: |
+          docker run --rm --env-file .env.ci auth-service:ci \
+            node -e "require('./src/container'); require('./src/app'); console.log('modul dapat dimuat')"

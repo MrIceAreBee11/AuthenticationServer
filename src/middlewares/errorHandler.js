@@ -91,7 +91,10 @@ class ErrorHandler {
     return null;
   }
 
-  handle = (err, req, res, next) => {
+  // `_next` tidak dipakai tetapi WAJIB ada: Express mengenali penanganan error
+  // dari jumlah parameternya, dan dengan tiga parameter ia diperlakukan sebagai
+  // middleware biasa — seluruh error akan lolos ke penanganan bawaan Express.
+  handle = (err, req, res, _next) => {
     if (err instanceof AppError) {
       return errorResponse(res, err.statusCode, err.message, {
         code: err.code,
@@ -116,9 +119,14 @@ class ErrorHandler {
 
       // 503 dan bukan 500: masalahnya bukan pada permintaannya, dan klien
       // boleh mencoba lagi nanti.
-      return errorResponse(res, 503, 'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.', {
-        code: ERROR_CODES.DEPENDENCY_UNAVAILABLE,
-      });
+      return errorResponse(
+        res,
+        503,
+        'Layanan sedang tidak tersedia. Silakan coba beberapa saat lagi.',
+        {
+          code: ERROR_CODES.DEPENDENCY_UNAVAILABLE,
+        }
+      );
     }
 
     if (err instanceof UniqueConstraintError) {

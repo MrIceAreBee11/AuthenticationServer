@@ -24,7 +24,8 @@ Dilengkapi **antarmuka console** untuk memperagakan seluruh endpoint tanpa perlu
 
 ### Prasyarat
 
-Docker Desktop dan Node.js 20 ke atas.
+Docker Desktop dan Node.js 22 ke atas — `fetch` yang dipakai pengujian
+end-to-end baru stabil sejak Node 21.
 
 ### Langkah
 
@@ -72,19 +73,23 @@ npm run worker                                       # terminal 2 — pengirim e
 
 ## Perintah
 
-| Perintah | Fungsi |
-|---|---|
-| `npm run dev` | API dengan muat ulang otomatis |
-| `npm run worker` | Proses pengirim email |
-| `npm run db:migrate` | Menjalankan migration |
-| `npm run db:seed` | Mengisi role, pemetaan izin, dan akun superadmin |
+| Perintah                  | Fungsi                                                     |
+| ------------------------- | ---------------------------------------------------------- |
+| `npm run dev`             | API dengan muat ulang otomatis                             |
+| `npm run worker`          | Proses pengirim email                                      |
+| `npm run db:migrate`      | Menjalankan migration                                      |
+| `npm run db:seed`         | Mengisi role, pemetaan izin, dan akun superadmin           |
 | `npm run gen:permissions` | Membuat ulang `src/constants/permissions.js` dari database |
-| `npm run db:reset` | Membangun ulang database dari nol |
-| `npm run test:db:setup` | Menyiapkan database pengujian (sekali saja) |
-| `npm run test:unit` | 354 pengujian unit — tanpa Docker, tanpa database |
-| `npm run test:e2e` | 34 pengujian end-to-end — perlu seluruh layanan hidup |
-| `npm run test:coverage` | Pengujian unit beserta laporan cakupan |
-| `npm test` | Unit lalu end-to-end |
+| `npm run db:reset`        | Membangun ulang database dari nol                          |
+| `npm run test:db:setup`   | Menyiapkan database pengujian (sekali saja)                |
+| `npm run test:unit`       | 354 pengujian unit — tanpa Docker, tanpa database          |
+| `npm run test:e2e`        | 34 pengujian end-to-end — perlu seluruh layanan hidup      |
+| `npm run test:coverage`   | Pengujian unit beserta laporan cakupan                     |
+| `npm test`                | Unit lalu end-to-end                                       |
+| `npm run lint`            | ESLint — termasuk penegakan hukum arsitektur di bawah      |
+| `npm run lint:fix`        | ESLint beserta perbaikan otomatis                          |
+| `npm run format`          | Prettier menulis ulang seluruh berkas                      |
+| `npm run format:check`    | Prettier hanya memeriksa, dipakai CI                       |
 
 ---
 
@@ -119,28 +124,28 @@ ia tampak seperti bug autentikasi, padahal murni akibat pengujian tetangga.
 Ambang cakupan dipasang di `npm run test:coverage` dan membuat perintahnya
 gagal bila turun di bawah 80 persen baris maupun cabang.
 
-| Berkas | Baris | Cabang |
-|---|---|---|
-| `modules/auth/auth.service.js` | 100% | 100% |
-| `modules/auth/password.service.js` | 100% | 100% |
-| `services/audit.service.js` | 100% | 100% |
-| `services/permission.service.js` | 97,7% | 93,9% |
-| `modules/roles/roles.service.js` | 91,5% | 94,1% |
-| `mappers/user.mapper.js`, `mappers/role.mapper.js` | 100% | 100% |
-| `middlewares/validate.js` | 100% | 100% |
-| `middlewares/idempotency.js` | 100% | 95,8% |
-| `middlewares/authenticate.js` | 100% | 96,4% |
-| `middlewares/authorize.js` | 100% | 100% |
-| `middlewares/errorHandler.js` | 100% | 93,1% |
-| `middlewares/requestLogger.js` | 100% | 100% |
-| `utils/logger.js` | 100% | 96,9% |
-| `utils/requestContext.js` | 89,3% | 100% |
-| `utils/duration.js`, `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100% | 100% |
-| `config/env.schema.js` | 97,9% | 93,3% |
-| `constants/*` | 100% | 100% |
-| `repositories/idempotency.repository.js` | 100% | 100% |
-| `repositories/passwordResetToken.repository.js` | 100% | 100% |
-| `repositories/tokenDenylist.repository.js` | 100% | 100% |
+| Berkas                                                                          | Baris | Cabang |
+| ------------------------------------------------------------------------------- | ----- | ------ |
+| `modules/auth/auth.service.js`                                                  | 100%  | 100%   |
+| `modules/auth/password.service.js`                                              | 100%  | 100%   |
+| `services/audit.service.js`                                                     | 100%  | 100%   |
+| `services/permission.service.js`                                                | 97,7% | 93,9%  |
+| `modules/roles/roles.service.js`                                                | 91,5% | 94,1%  |
+| `mappers/user.mapper.js`, `mappers/role.mapper.js`                              | 100%  | 100%   |
+| `middlewares/validate.js`                                                       | 100%  | 100%   |
+| `middlewares/idempotency.js`                                                    | 100%  | 95,8%  |
+| `middlewares/authenticate.js`                                                   | 100%  | 96,4%  |
+| `middlewares/authorize.js`                                                      | 100%  | 100%   |
+| `middlewares/errorHandler.js`                                                   | 100%  | 93,1%  |
+| `middlewares/requestLogger.js`                                                  | 100%  | 100%   |
+| `utils/logger.js`                                                               | 100%  | 96,9%  |
+| `utils/requestContext.js`                                                       | 89,3% | 100%   |
+| `utils/duration.js`, `utils/token.js`, `utils/response.js`, `utils/AppError.js` | 100%  | 100%   |
+| `config/env.schema.js`                                                          | 97,9% | 93,3%  |
+| `constants/*`                                                                   | 100%  | 100%   |
+| `repositories/idempotency.repository.js`                                        | 100%  | 100%   |
+| `repositories/passwordResetToken.repository.js`                                 | 100%  | 100%   |
+| `repositories/tokenDenylist.repository.js`                                      | 100%  | 100%   |
 
 Keseluruhan **98,7 persen baris dan 97,3 persen cabang**.
 
@@ -152,38 +157,73 @@ saat pengujian unit berjalan.
 
 ---
 
+---
+
+## Integrasi Berkelanjutan
+
+`.github/workflows/ci.yml` berjalan pada setiap push dan pull request ke `main`,
+dalam tiga pekerjaan terpisah:
+
+| Pekerjaan       | Isinya                                                             | Butuh layanan |
+| --------------- | ------------------------------------------------------------------ | ------------- |
+| Lint dan format | `npm run lint`, `npm run format:check`                             | tidak         |
+| Pengujian       | cakupan unit, lalu `docker compose up postgres redis`, lalu E2E    | ya            |
+| Image Docker    | `docker build`, lalu membuktikan modulnya dapat dimuat di dalamnya | tidak         |
+
+Ketiganya dipisah karena kegagalan yang paling sering — salah ketik dan
+pemformatan — tidak perlu menunggu Postgres menyala untuk ketahuan.
+
+**Kenapa `docker compose`, bukan service container bawaan GitHub.** Redis di
+project ini dijalankan dengan `--requirepass`, dan service container tidak dapat
+menimpa perintah image. Memakai `docker-compose.yml` yang sama dengan mesin
+pengembang juga menghapus satu sumber perbedaan: yang terbukti hijau adalah
+susunan yang sungguhan dipakai, bukan susunan tiruan khusus CI.
+
+**Kenapa ada pekerjaan yang hanya membangun image.** Pemindahan empat folder ke
+`src/infrastructure/` adalah contoh perubahan yang lolos seluruh pengujian di
+mesin pengembang tetapi tetap dapat mematahkan image — image menyalin `src/`
+dan menjalankannya lewat jalur yang berbeda. Langkah `docker run ... require`
+sekaligus menjalankan validasi konfigurasi, karena `src/config` memvalidasi
+seluruh variabel saat berkasnya dimuat.
+
+`.env.ci` ikut di-commit dengan sengaja. Layanan yang dituju dibuat baru setiap
+kali workflow berjalan dan dibuang setelahnya, jadi tidak ada nilai rahasia di
+dalamnya. Ia hanya memuat variabel yang **tidak** punya nilai bawaan di
+`src/config/env.schema.js` — sisanya sengaja dibiarkan memakai bawaannya supaya
+CI ikut membuktikan bahwa nilai bawaan itu benar.
+
 ## Endpoint
 
 Seluruhnya berawalan `/api/v1`.
 
-| Metode | Alamat | Izin |
-|---|---|---|
-| GET | `/health` | terbuka |
-| GET | `/health/ready` | terbuka |
-| POST | `/auth/login` | terbuka, 5 percobaan / 15 menit |
-| POST | `/auth/refresh` | terbuka, cukup refresh token yang sah |
-| GET | `/auth/me` | token sah |
-| POST | `/auth/logout` | token sah |
-| GET | `/auth/permissions` | token sah (izin milik sendiri) |
-| POST | `/auth/forgot-password` | terbuka, 3 permintaan / jam |
-| POST | `/auth/reset-password` | terbuka |
-| GET | `/profile` | `profile.read` |
-| PATCH | `/profile` | `profile.update` |
-| POST | `/profile/avatar` | `profile.update` |
-| DELETE | `/profile/avatar` | `profile.update` |
-| GET | `/users` | `users.read` |
-| POST | `/users` | `users.create` |
-| GET | `/users/:id` | `users.read` |
-| PATCH | `/users/:id` | `users.update` |
-| DELETE | `/users/:id` | `users.delete` |
-| PUT | `/users/:id/roles` | `roles.update` |
-| GET | `/roles` | `roles.read` |
-| POST | `/roles` | `roles.create` |
-| GET | `/roles/:id` | `roles.read` |
-| PATCH | `/roles/:id` | `roles.update` |
-| PUT | `/roles/:id/permissions` | `roles.update` |
-| DELETE | `/roles/:id` | `roles.delete` |
-| GET | `/permissions` | `permissions.read` |
+| Metode | Alamat                   | Izin                                  |
+| ------ | ------------------------ | ------------------------------------- |
+| GET    | `/health`                | terbuka                               |
+| GET    | `/health/ready`          | terbuka                               |
+| POST   | `/auth/login`            | terbuka, 5 percobaan / 15 menit       |
+| POST   | `/auth/refresh`          | terbuka, cukup refresh token yang sah |
+| GET    | `/auth/me`               | token sah                             |
+| POST   | `/auth/logout`           | token sah                             |
+| GET    | `/auth/permissions`      | token sah (izin milik sendiri)        |
+| POST   | `/auth/forgot-password`  | terbuka, 3 permintaan / jam           |
+| POST   | `/auth/reset-password`   | terbuka                               |
+| GET    | `/profile`               | `profile.read`                        |
+| PATCH  | `/profile`               | `profile.update`                      |
+| POST   | `/profile/avatar`        | `profile.update`                      |
+| DELETE | `/profile/avatar`        | `profile.update`                      |
+| GET    | `/users`                 | `users.read`                          |
+| POST   | `/users`                 | `users.create`                        |
+| GET    | `/users/:id`             | `users.read`                          |
+| PATCH  | `/users/:id`             | `users.update`                        |
+| DELETE | `/users/:id`             | `users.delete`                        |
+| PUT    | `/users/:id/roles`       | `roles.update`                        |
+| GET    | `/roles`                 | `roles.read`                          |
+| POST   | `/roles`                 | `roles.create`                        |
+| GET    | `/roles/:id`             | `roles.read`                          |
+| PATCH  | `/roles/:id`             | `roles.update`                        |
+| PUT    | `/roles/:id/permissions` | `roles.update`                        |
+| DELETE | `/roles/:id`             | `roles.delete`                        |
+| GET    | `/permissions`           | `permissions.read`                    |
 
 ---
 
@@ -262,15 +302,21 @@ Dua pengaman berjalan tanpa perlu diingat:
 routes -> controller -> service -> repository -> model/DB
 ```
 
-Tiga aturan yang ditegakkan, dan masing-masing dapat diperiksa dengan satu grep:
+Dua di antaranya **ditegakkan ESLint**, jadi pelanggarannya menggagalkan
+`npm run lint` dan CI — bukan bergantung pada yang me-review sempat menyadarinya:
 
-| Aturan | Perintah pemeriksa | Nilai sekarang |
-|---|---|---|
-| `process.env` hanya di `config/` | `grep -rn "process.env" src \| grep -v src/config` | 3, seluruhnya di dalam komentar |
-| Sequelize hanya di `repositories/` | `grep -rn "models\.\|sequelize\." src \| grep -vE "repositories\|database\|container"` | 0 |
-| Tidak ada singleton diekspor | `grep -rnE "module.exports.*: new [A-Z]" src` | 0 |
-| Tidak ada `console.*` | `grep -rnE "console\.(log\|error\|warn)" src` | 4: tiga pemanggilan (lihat di bawah) + satu komentar |
-| Tidak ada `new AppError` langsung | `grep -rn "new AppError(" src \| grep -v utils/` | 0 |
+- `process.env` di luar `src/config/` → `no-restricted-properties`
+- `console.*` di luar tiga pengecualian terdokumentasi → `no-console`
+
+Sisanya belum bisa dijadikan aturan lint dan masih diperiksa dengan grep:
+
+| Aturan                             | Perintah pemeriksa                                                                     | Nilai sekarang                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `process.env` hanya di `config/`   | `grep -rn "process.env" src \| grep -v src/config`                                     | 3, seluruhnya di dalam komentar                      |
+| Sequelize hanya di `repositories/` | `grep -rn "models\.\|sequelize\." src \| grep -vE "repositories\|database\|container"` | 0                                                    |
+| Tidak ada singleton diekspor       | `grep -rnE "module.exports.*: new [A-Z]" src`                                          | 0                                                    |
+| Tidak ada `console.*`              | `grep -rnE "console\.(log\|error\|warn)" src`                                          | 4: tiga pemanggilan (lihat di bawah) + satu komentar |
+| Tidak ada `new AppError` langsung  | `grep -rn "new AppError(" src \| grep -v utils/`                                       | 0                                                    |
 
 Tiga `console.*` yang tersisa sengaja dibiarkan: dua di `config/index.js`
 (logger sendiri dibangun dari konfigurasi yang barusan gagal divalidasi) dan
@@ -284,11 +330,12 @@ tahu implementasi konkret kolaboratornya:
 
 ```js
 // dipakai sehari-hari — dirakit container
-new AuthService({ users, denylist, refreshTokens, tokens, ttlSeconds })
+new AuthService({ users, denylist, refreshTokens, tokens, ttlSeconds });
 
 // dipakai di pengujian — objek palsu, tanpa satu pun layanan hidup
-new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() })
+new AuthService({ users: palsu, denylist: palsu, tokens: testTokenService() });
 ```
+
 | `process.env` hanya di `config/` | `grep -rn "process.env" src | grep -v src/config` | 3, seluruhnya di dalam komentar |
 | Sequelize hanya di `repositories/` | `grep -rn "models.|sequelize." src | grep -vE "repositories|database|container"` | 0 |
 `utils/duration.js` murni — tanpa dependensi, tanpa keadaan. Tidak ada yang
@@ -303,9 +350,18 @@ dari service dan repository beberapa lapis di bawah, lewat `AsyncLocalStorage`.
 Jadi satu nilai yang disebutkan pengguna langsung menunjuk seluruh jejaknya:
 
 ```json
-{"time":"...","level":"warn","msg":"permintaan perlu diperhatikan",
- "requestId":"a5b8ec13-...","component":"http","method":"POST",
- "path":"/api/v1/auth/login","status":401,"durationMs":422,"userId":null}
+{
+  "time": "...",
+  "level": "warn",
+  "msg": "permintaan perlu diperhatikan",
+  "requestId": "a5b8ec13-...",
+  "component": "http",
+  "method": "POST",
+  "path": "/api/v1/auth/login",
+  "status": 401,
+  "durationMs": 422,
+  "userId": null
+}
 ```
 
 Sepuluh nama field sensitif diredaksi otomatis, rekursif — `password`, `token`,
@@ -315,11 +371,11 @@ dalam objek.
 **Kode error.** Setiap jawaban gagal membawa `code` yang stabil di samping
 `message` yang untuk manusia. Ini yang boleh diandalkan klien:
 
-| Status | Kode | Artinya bagi klien |
-|---|---|---|
-| 401 | `TOKEN_EXPIRED` | perbarui token, lalu ulangi permintaannya |
-| 401 | `TOKEN_REVOKED` | jangan diulangi, minta pengguna login |
-| 401 | `PASSWORD_CHANGED` | sama, tetapi pesannya untuk pengguna berbeda |
+| Status | Kode               | Artinya bagi klien                           |
+| ------ | ------------------ | -------------------------------------------- |
+| 401    | `TOKEN_EXPIRED`    | perbarui token, lalu ulangi permintaannya    |
+| 401    | `TOKEN_REVOKED`    | jangan diulangi, minta pengguna login        |
+| 401    | `PASSWORD_CHANGED` | sama, tetapi pesannya untuk pengguna berbeda |
 
 Ketiganya 401. Tanpa kode, klien harus menebak dari teks pesan.
 
@@ -379,12 +435,12 @@ operasinya. Keputusan yang bisa diperdebatkan, jadi diuji secara eksplisit di
 `Idempotency-Key`. Yang dipecahkan bukan data ganda — `email` dan `name` sudah
 unik — melainkan bentuk jawaban pada percobaan ulang:
 
-| Percobaan | Tanpa header | Dengan header |
-|---|---|---|
-| Pertama | `201` | `201` |
-| Ulangan, jawaban pertama hilang | `409`, tampak gagal | `201` yang asli + `Idempotent-Replay: true` |
-| Ulangan tiba saat yang pertama masih berjalan | dua operasi tulis bersamaan | `409` |
-| Gagal, diperbaiki, lalu diulang | diproses ulang | diproses ulang |
+| Percobaan                                     | Tanpa header                | Dengan header                               |
+| --------------------------------------------- | --------------------------- | ------------------------------------------- |
+| Pertama                                       | `201`                       | `201`                                       |
+| Ulangan, jawaban pertama hilang               | `409`, tampak gagal         | `201` yang asli + `Idempotent-Replay: true` |
+| Ulangan tiba saat yang pertama masih berjalan | dua operasi tulis bersamaan | `409`                                       |
+| Gagal, diperbaiki, lalu diulang               | diproses ulang              | diproses ulang                              |
 
 Pemesanan kuncinya memakai `SET NX` Redis, bukan `GET` lalu `SET`: dua
 permintaan yang datang bersamaan sama-sama melihat "belum ada" pada pola
@@ -397,14 +453,14 @@ yang disimpan; kunci yang permintaannya gagal dilepas kembali.
 
 ## Layanan
 
-| Layanan | Port | Wajib saat start |
-|---|---|---|
-| PostgreSQL | 5432 | ya |
-| Redis | 6379 | ya |
-| RabbitMQ | 5672, 15672 (UI) | tidak |
-| MinIO | 9000, 9001 (Console) | tidak |
-| API | 3000 | — |
-| Worker email | — | — |
+| Layanan      | Port                 | Wajib saat start |
+| ------------ | -------------------- | ---------------- |
+| PostgreSQL   | 5432                 | ya               |
+| Redis        | 6379                 | ya               |
+| RabbitMQ     | 5672, 15672 (UI)     | tidak            |
+| MinIO        | 9000, 9001 (Console) | tidak            |
+| API          | 3000                 | —                |
+| Worker email | —                    | —                |
 
 RabbitMQ dan MinIO tidak diwajibkan karena email dan avatar adalah fungsi pendukung.
 Menjadikannya wajib berarti menjatuhkan seluruh autentikasi karena masalah pada gambar profil.

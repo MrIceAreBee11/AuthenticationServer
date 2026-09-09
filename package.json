@@ -7,6 +7,10 @@
     "start": "node src/server.js",
     "worker": "node --watch src/workers/emailWorker.js",
     "worker:start": "node src/workers/emailWorker.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "gen:permissions": "node scripts/generate-permissions.js",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --env-file=.env.unit --test \"tests/unit/*.test.js\"",
@@ -45,10 +49,15 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.3.0",
+    "prettier": "^3.9.6",
     "sequelize-cli": "^6.6.5"
   },
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+package-lock.json
+docs/*.docx
+docs/*.pdf
+
+# Antarmuka console ditulis tanpa perkakas build dan tidak ikut dilint.
+public/

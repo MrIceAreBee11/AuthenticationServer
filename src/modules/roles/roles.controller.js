@@ -6,11 +6,7 @@
  * (/permissions) supaya sumber dayanya jelas berbeda.
  */
 const { successResponse } = require('../../utils/response');
-const {
-  toRoleDto,
-  toRoleListDto,
-  toPermissionCatalogDto,
-} = require('../../mappers/role.mapper');
+const { toRoleDto, toRoleListDto, toPermissionCatalogDto } = require('../../mappers/role.mapper');
 
 class RolesController {
   constructor({ roles }) {
@@ -34,12 +30,18 @@ class RolesController {
   };
 
   listPermissions = async (req, res) => {
-    const { permissions, groups } = await this.roles.listPermissions();
+    const katalog = await this.roles.listPermissions();
 
-    return successResponse(res, 200, 'Daftar permission berhasil diambil', {
-      permissions,
-      groups,
-    });
+    // Sebelumnya isi service dikirim apa adanya. Hasilnya kebetulan sudah benar
+    // — repository memang hanya memilih tiga kolom — tetapi "kebetulan benar"
+    // persis keadaan yang mapper ini ada untuk menghilangkan: menambah kolom ke
+    // tabel permissions tidak boleh diam-diam menambah field di jawaban.
+    return successResponse(
+      res,
+      200,
+      'Daftar permission berhasil diambil',
+      toPermissionCatalogDto(katalog)
+    );
   };
 
   create = async (req, res) => {
